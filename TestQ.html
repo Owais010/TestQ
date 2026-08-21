@@ -1,0 +1,1233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TestQ — Let AI Build It. Let Us Try To Break It.</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0b0d14;
+  --bg-2:#0e1119;
+  --surface:#12151f;
+  --surface-2:#171b26;
+  --border:#232838;
+  --border-soft:#1a1e2a;
+  --text:#e7e9ee;
+  --text-dim:#8b93a7;
+  --text-faint:#565f74;
+  --mint:#5eead4;
+  --mint-dim:#2f5b53;
+  --coral:#ff6b5e;
+  --coral-dim:#5c2b26;
+  --amber:#e3a94b;
+  --amber-dim:#4d3c1e;
+  --blue:#6ea8fe;
+  --radius:10px;
+  --font-display:'Space Grotesk',sans-serif;
+  --font-mono:'IBM Plex Mono',monospace;
+  --font-body:'Inter',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--font-body);
+  overflow-x:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+@media (prefers-reduced-motion: reduce){
+  *{animation-duration:0.01ms !important; animation-iteration-count:1 !important; transition-duration:0.01ms !important;}
+}
+::selection{background:var(--mint-dim);color:var(--mint);}
+a{color:inherit;text-decoration:none;}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;}
+:focus-visible{outline:2px solid var(--mint);outline-offset:2px;}
+
+/* ---------- background texture ---------- */
+.grid-bg{
+  position:fixed;inset:0;z-index:0;pointer-events:none;
+  background-image:
+    linear-gradient(to right, rgba(255,255,255,0.025) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255,255,255,0.025) 1px, transparent 1px);
+  background-size:64px 64px;
+  mask-image:radial-gradient(ellipse 80% 60% at 50% 0%, #000 40%, transparent 100%);
+}
+
+/* ---------- screens ---------- */
+.screen{
+  position:relative;z-index:1;
+  min-height:100vh;
+  display:none;
+  animation:fadeIn .5s ease;
+}
+.screen.active{display:block;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+
+/* ---------- nav ---------- */
+.nav{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:22px 48px;
+  border-bottom:1px solid var(--border-soft);
+  position:sticky;top:0;background:rgba(11,13,20,0.85);backdrop-filter:blur(10px);
+  z-index:50;
+}
+.brand{display:flex;align-items:center;gap:10px;font-family:var(--font-display);font-weight:700;font-size:19px;letter-spacing:-0.02em;cursor:pointer;}
+.brand-mark{
+  width:26px;height:26px;border-radius:6px;
+  background:linear-gradient(135deg,var(--mint),var(--blue));
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--font-mono);font-weight:700;font-size:14px;color:#08120f;
+  flex-shrink:0;
+}
+.nav-links{display:flex;gap:32px;align-items:center;font-size:14px;color:var(--text-dim);}
+.nav-links a:hover{color:var(--text);}
+.nav-cta{
+  padding:9px 18px;border-radius:7px;border:1px solid var(--border);
+  font-size:13.5px;font-weight:500;color:var(--text);transition:.15s;
+}
+.nav-cta:hover{border-color:var(--mint);color:var(--mint);}
+.nav-cta.primary{background:var(--mint);color:#08120f;border-color:var(--mint);font-weight:600;}
+.nav-cta.primary:hover{background:#7ff2de;color:#08120f;}
+
+/* ================= LANDING ================= */
+.hero{
+  max-width:1180px;margin:0 auto;padding:96px 48px 60px;
+  display:grid;grid-template-columns:1.05fr 0.95fr;gap:56px;align-items:center;
+}
+.eyebrow{
+  display:inline-flex;align-items:center;gap:8px;
+  font-family:var(--font-mono);font-size:12px;color:var(--mint);
+  border:1px solid var(--mint-dim);background:rgba(94,234,212,0.06);
+  padding:6px 12px;border-radius:20px;margin-bottom:22px;
+}
+.eyebrow .dot{width:6px;height:6px;border-radius:50%;background:var(--mint);animation:pulse 1.6s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.3;}}
+.hero h1{
+  font-family:var(--font-display);font-weight:700;
+  font-size:56px;line-height:1.04;letter-spacing:-0.025em;
+  margin-bottom:22px;
+}
+.hero h1 .strike{position:relative;color:var(--text-faint);}
+.hero h1 .brk{color:var(--coral);}
+.hero p.sub{
+  font-size:17px;line-height:1.6;color:var(--text-dim);max-width:480px;margin-bottom:34px;
+}
+.hero-ctas{display:flex;gap:14px;margin-bottom:36px;}
+.btn{
+  padding:13px 22px;border-radius:8px;font-size:14.5px;font-weight:600;
+  display:inline-flex;align-items:center;gap:8px;transition:.15s;
+}
+.btn-primary{background:var(--mint);color:#08120f;}
+.btn-primary:hover{background:#7ff2de;transform:translateY(-1px);}
+.btn-secondary{border:1px solid var(--border);color:var(--text);}
+.btn-secondary:hover{border-color:var(--text-dim);}
+.trust-row{display:flex;gap:26px;font-size:12.5px;color:var(--text-faint);font-family:var(--font-mono);}
+.trust-row span{display:flex;align-items:center;gap:6px;}
+
+/* terminal signature element */
+.term{
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  overflow:hidden;box-shadow:0 30px 60px -20px rgba(0,0,0,0.5);
+}
+.term-bar{
+  display:flex;align-items:center;gap:8px;padding:11px 14px;
+  border-bottom:1px solid var(--border-soft);background:var(--surface-2);
+}
+.term-dot{width:10px;height:10px;border-radius:50%;}
+.term-bar .t-title{margin-left:8px;font-family:var(--font-mono);font-size:12px;color:var(--text-faint);}
+.term-body{
+  padding:18px 20px 22px;font-family:var(--font-mono);font-size:13px;line-height:1.9;
+  min-height:290px;color:var(--text-dim);
+}
+.term-body .line{opacity:0;animation:lineIn .3s forwards;}
+.term-body .ok{color:var(--mint);}
+.term-body .fail{color:var(--coral);}
+.term-body .warn{color:var(--amber);}
+.term-body .muted{color:var(--text-faint);}
+.term-body .cursor{display:inline-block;width:7px;height:14px;background:var(--mint);vertical-align:middle;animation:blink 1s step-end infinite;}
+@keyframes blink{50%{opacity:0;}}
+@keyframes lineIn{to{opacity:1;}}
+
+/* problem section */
+.section{max-width:1180px;margin:0 auto;padding:70px 48px;}
+.section-head{max-width:640px;margin-bottom:44px;}
+.section-tag{font-family:var(--font-mono);font-size:12px;color:var(--text-faint);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px;}
+.section h2{font-family:var(--font-display);font-size:32px;font-weight:600;letter-spacing:-0.02em;margin-bottom:14px;}
+.section p.lead{color:var(--text-dim);font-size:15.5px;line-height:1.7;}
+
+.flow-row{display:flex;align-items:center;gap:0;flex-wrap:wrap;margin-top:8px;}
+.flow-step{
+  background:var(--surface);border:1px solid var(--border);border-radius:9px;
+  padding:13px 16px;font-family:var(--font-mono);font-size:12.5px;color:var(--text-dim);
+  white-space:nowrap;
+}
+.flow-arrow{color:var(--text-faint);padding:0 10px;font-size:13px;}
+
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:8px;}
+.card{
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:26px;
+  transition:.2s;
+}
+.card:hover{border-color:var(--border);transform:translateY(-2px);box-shadow:0 12px 30px -14px rgba(0,0,0,.5);}
+.card .icon{
+  width:38px;height:38px;border-radius:9px;display:flex;align-items:center;justify-content:center;
+  font-family:var(--font-mono);font-size:16px;margin-bottom:16px;
+}
+.card h3{font-family:var(--font-display);font-size:17px;margin-bottom:8px;font-weight:600;}
+.card p{font-size:13.5px;color:var(--text-dim);line-height:1.6;}
+
+.footer{border-top:1px solid var(--border-soft);padding:28px 48px;display:flex;justify-content:space-between;align-items:center;color:var(--text-faint);font-size:12.5px;font-family:var(--font-mono);}
+
+/* ================= INPUT SCREEN ================= */
+.center-wrap{
+  max-width:640px;margin:0 auto;padding:90px 24px 60px;
+}
+.step-label{font-family:var(--font-mono);font-size:12px;color:var(--mint);letter-spacing:.05em;text-transform:uppercase;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+.center-wrap h1{font-family:var(--font-display);font-size:34px;font-weight:600;letter-spacing:-0.02em;margin-bottom:10px;}
+.center-wrap p.desc{color:var(--text-dim);font-size:14.5px;margin-bottom:36px;}
+.input-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:28px;}
+.field-label{font-size:12.5px;color:var(--text-dim);margin-bottom:8px;display:block;font-weight:500;}
+.input-row{
+  display:flex;align-items:center;gap:10px;background:var(--bg-2);border:1px solid var(--border);
+  border-radius:9px;padding:13px 16px;margin-bottom:6px;transition:.15s;
+}
+.input-row:focus-within{border-color:var(--mint);}
+.input-row svg{flex-shrink:0;opacity:.5;}
+.input-row input{
+  background:none;border:none;color:var(--text);font-family:var(--font-mono);font-size:14px;width:100%;
+}
+.input-row input:focus{outline:none;}
+.input-row input::placeholder{color:var(--text-faint);}
+.hint{font-size:12px;color:var(--text-faint);margin-bottom:22px;}
+.row-2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:24px;}
+.select-fake{
+  background:var(--bg-2);border:1px solid var(--border);border-radius:9px;padding:12px 14px;
+  font-family:var(--font-mono);font-size:13px;color:var(--text-dim);display:flex;justify-content:space-between;align-items:center;
+}
+.start-btn{
+  width:100%;padding:14px;border-radius:9px;background:var(--mint);color:#08120f;font-weight:600;font-size:14.5px;
+  display:flex;align-items:center;justify-content:center;gap:8px;transition:.15s;
+}
+.start-btn:hover{background:#7ff2de;}
+.start-btn:disabled{opacity:.5;cursor:not-allowed;}
+.divider-or{display:flex;align-items:center;gap:14px;margin:26px 0;color:var(--text-faint);font-size:12px;font-family:var(--font-mono);}
+.divider-or::before,.divider-or::after{content:"";flex:1;height:1px;background:var(--border-soft);}
+.demo-card{
+  border:1px dashed var(--border);border-radius:12px;padding:20px;display:flex;justify-content:space-between;align-items:center;gap:16px;
+}
+.demo-card .d-title{font-weight:600;font-size:14.5px;margin-bottom:4px;}
+.demo-card .d-desc{font-size:12.5px;color:var(--text-dim);}
+.demo-btn{padding:10px 18px;border-radius:8px;border:1px solid var(--mint-dim);color:var(--mint);font-size:13px;font-weight:600;white-space:nowrap;transition:.15s;}
+.demo-btn:hover{background:rgba(94,234,212,.08);}
+.err-msg{
+  display:none;color:var(--coral);font-size:12.5px;font-family:var(--font-mono);margin-top:8px;
+  align-items:center;gap:6px;
+}
+.err-msg.show{display:flex;}
+
+/* ================= PIPELINE SCREEN ================= */
+.pipeline-wrap{max-width:760px;margin:0 auto;padding:64px 24px 60px;}
+.pipeline-head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:28px;}
+.repo-chip{font-family:var(--font-mono);font-size:13px;color:var(--text-dim);display:flex;align-items:center;gap:8px;}
+.repo-chip .dot-live{width:7px;height:7px;border-radius:50%;background:var(--mint);animation:pulse 1.4s infinite;}
+.pipeline-list{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;}
+.pl-item{
+  display:flex;align-items:center;gap:14px;padding:16px 20px;
+  border-bottom:1px solid var(--border-soft);
+  opacity:0.35;transition:opacity .3s;
+}
+.pl-item:last-child{border-bottom:none;}
+.pl-item.active{opacity:1;background:rgba(94,234,212,0.03);}
+.pl-item.done{opacity:1;}
+.pl-icon{
+  width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;font-size:13px;border:1.5px solid var(--border);color:var(--text-faint);font-family:var(--font-mono);
+}
+.pl-item.done .pl-icon{background:var(--mint-dim);border-color:var(--mint);color:var(--mint);}
+.pl-item.active .pl-icon{border-color:var(--blue);color:var(--blue);}
+.pl-item.active .pl-icon .spin{
+  width:12px;height:12px;border:2px solid rgba(110,168,254,.3);border-top-color:var(--blue);border-radius:50%;
+  animation:spin .7s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg);}}
+.pl-text{flex:1;}
+.pl-title{font-size:14px;font-weight:500;}
+.pl-sub{font-family:var(--font-mono);font-size:12px;color:var(--text-faint);margin-top:2px;}
+.pl-item.done .pl-sub{color:var(--mint);}
+.pl-count{font-family:var(--font-mono);font-size:12px;color:var(--text-faint);}
+
+.pipeline-log{
+  margin-top:22px;background:var(--bg-2);border:1px solid var(--border-soft);border-radius:10px;
+  padding:16px 18px;font-family:var(--font-mono);font-size:12.5px;color:var(--text-dim);
+  max-height:150px;overflow-y:auto;line-height:1.9;
+}
+.pipeline-log .l-ok{color:var(--mint);}
+.pipeline-log .l-fail{color:var(--coral);}
+.pipeline-log .l-warn{color:var(--amber);}
+
+.pl-cta{display:flex;justify-content:flex-end;margin-top:24px;}
+
+/* ================= DASHBOARD ================= */
+.dash{max-width:1180px;margin:0 auto;padding:36px 48px 80px;}
+.dash-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:28px;flex-wrap:wrap;gap:16px;}
+.dash-title{display:flex;flex-direction:column;gap:6px;}
+.dash-title h1{font-family:var(--font-display);font-size:24px;font-weight:600;letter-spacing:-.01em;}
+.dash-repo{font-family:var(--font-mono);font-size:12.5px;color:var(--text-faint);}
+.dash-actions{display:flex;gap:10px;}
+
+.tabs{display:flex;gap:6px;border-bottom:1px solid var(--border-soft);margin-bottom:28px;overflow-x:auto;}
+.tab{
+  padding:11px 16px;font-size:13.5px;color:var(--text-dim);border-bottom:2px solid transparent;
+  font-weight:500;white-space:nowrap;transition:.15s;
+}
+.tab:hover{color:var(--text);}
+.tab.active{color:var(--text);border-bottom-color:var(--mint);}
+
+.tab-panel{display:none;}
+.tab-panel.active{display:block;animation:fadeIn .3s ease;}
+
+/* overview grid */
+.overview-grid{display:grid;grid-template-columns:280px 1fr;gap:24px;margin-bottom:24px;}
+.score-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:28px;
+  display:flex;flex-direction:column;align-items:center;text-align:center;
+}
+.score-ring{position:relative;width:150px;height:150px;margin-bottom:16px;}
+.score-ring svg{transform:rotate(-90deg);}
+.score-ring .bg-ring{fill:none;stroke:var(--border-soft);stroke-width:10;}
+.score-ring .fg-ring{fill:none;stroke:var(--amber);stroke-width:10;stroke-linecap:round;
+  stroke-dasharray:408; stroke-dashoffset:408; transition:stroke-dashoffset 1.4s cubic-bezier(.16,1,.3,1);}
+.score-num{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+.score-num .n{font-family:var(--font-display);font-size:34px;font-weight:700;}
+.score-num .lbl{font-family:var(--font-mono);font-size:10.5px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.06em;}
+.score-verdict{font-size:13px;color:var(--text-dim);line-height:1.5;}
+.score-verdict b{color:var(--amber);}
+
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
+.stat-box{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;}
+.stat-box .s-num{font-family:var(--font-display);font-size:26px;font-weight:700;margin-bottom:4px;}
+.stat-box .s-lbl{font-size:12px;color:var(--text-faint);font-family:var(--font-mono);}
+.stat-box.pass .s-num{color:var(--mint);}
+.stat-box.fail .s-num{color:var(--coral);}
+
+.sev-row{display:flex;gap:14px;margin-top:14px;}
+.sev-pill{
+  flex:1;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;
+  display:flex;flex-direction:column;gap:6px;
+}
+.sev-pill .sv-top{display:flex;justify-content:space-between;align-items:center;}
+.sev-pill .sv-dot{width:9px;height:9px;border-radius:50%;}
+.sev-pill .sv-num{font-family:var(--font-display);font-weight:700;font-size:19px;}
+.sev-pill .sv-lbl{font-size:11.5px;color:var(--text-faint);font-family:var(--font-mono);text-transform:uppercase;}
+
+.rec-list{margin-top:24px;}
+.rec-list h3{font-family:var(--font-display);font-size:16px;margin-bottom:14px;font-weight:600;}
+.rec-item{
+  display:flex;gap:12px;padding:14px 0;border-bottom:1px solid var(--border-soft);align-items:flex-start;
+}
+.rec-item:last-child{border-bottom:none;}
+.rec-num{font-family:var(--font-mono);font-size:12px;color:var(--mint);flex-shrink:0;margin-top:2px;}
+.rec-item p{font-size:13.5px;color:var(--text-dim);line-height:1.6;}
+.rec-item .rec-tag{font-family:var(--font-mono);font-size:10.5px;color:var(--text-faint);display:block;margin-top:4px;}
+
+/* bugs list */
+.bug-item{
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px 22px;margin-bottom:14px;
+  cursor:pointer;transition:.15s;
+}
+.bug-item:hover{border-color:var(--border);transform:translateX(2px);}
+.bug-top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:10px;}
+.bug-id{font-family:var(--font-mono);font-size:11.5px;color:var(--text-faint);margin-bottom:4px;}
+.bug-title{font-family:var(--font-display);font-size:16px;font-weight:600;}
+.bug-badges{display:flex;gap:8px;flex-shrink:0;}
+.badge{
+  font-family:var(--font-mono);font-size:10.5px;padding:4px 9px;border-radius:20px;font-weight:600;
+  text-transform:uppercase;letter-spacing:.03em;white-space:nowrap;
+}
+.badge.critical{background:var(--coral-dim);color:var(--coral);}
+.badge.high{background:#4d2f1e;color:#ff9b5e;}
+.badge.medium{background:var(--amber-dim);color:var(--amber);}
+.badge.low{background:#1c2a3d;color:var(--blue);}
+.bug-meta{display:flex;gap:16px;font-size:12px;color:var(--text-faint);font-family:var(--font-mono);}
+.bug-meta span{display:flex;align-items:center;gap:5px;}
+
+/* test cases */
+.tc-table{width:100%;border-collapse:collapse;}
+.tc-table thead th{
+  text-align:left;font-size:11px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.05em;
+  padding:0 14px 12px;font-family:var(--font-mono);font-weight:500;border-bottom:1px solid var(--border-soft);
+}
+.tc-table tbody tr{border-bottom:1px solid var(--border-soft);cursor:pointer;transition:.12s;}
+.tc-table tbody tr:hover{background:var(--surface);}
+.tc-table td{padding:13px 14px;font-size:13.5px;}
+.tc-status{display:flex;align-items:center;gap:8px;font-family:var(--font-mono);font-weight:600;font-size:13px;}
+.tc-status.pass{color:var(--mint);}
+.tc-status.fail{color:var(--coral);}
+.tc-cat{font-family:var(--font-mono);font-size:12px;color:var(--text-dim);}
+.tc-dur{font-family:var(--font-mono);font-size:12px;color:var(--text-faint);}
+
+/* project analysis panel */
+.proj-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px;}
+.proj-box{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;}
+.proj-box .p-lbl{font-family:var(--font-mono);font-size:11px;color:var(--text-faint);text-transform:uppercase;margin-bottom:8px;letter-spacing:.04em;}
+.proj-box .p-val{font-family:var(--font-display);font-size:18px;font-weight:600;}
+.file-tree{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px 22px;font-family:var(--font-mono);font-size:13px;line-height:2;color:var(--text-dim);}
+.file-tree .fold{color:var(--blue);}
+.file-tree .dim{color:var(--text-faint);}
+
+/* screenshots */
+.shots-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+.shot-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;}
+.shot-thumb{
+  height:140px;background:linear-gradient(135deg,var(--surface-2),var(--bg-2));
+  display:flex;align-items:center;justify-content:center;color:var(--text-faint);
+  border-bottom:1px solid var(--border-soft);position:relative;
+}
+.shot-thumb .crosshair{position:absolute;width:16px;height:16px;border:1.5px solid var(--coral);border-radius:50%;}
+.shot-thumb .crosshair::before,.shot-thumb .crosshair::after{content:"";position:absolute;background:var(--coral);}
+.shot-thumb .crosshair::before{width:1px;height:22px;top:-4px;left:7px;}
+.shot-thumb .crosshair::after{height:1px;width:22px;left:-4px;top:7px;}
+.shot-meta{padding:12px 14px;}
+.shot-meta .sm-title{font-size:13px;font-weight:500;margin-bottom:3px;}
+.shot-meta .sm-sub{font-family:var(--font-mono);font-size:11px;color:var(--text-faint);}
+
+/* logs */
+.log-console{
+  background:var(--bg-2);border:1px solid var(--border);border-radius:12px;padding:20px 22px;
+  font-family:var(--font-mono);font-size:12.5px;line-height:2;color:var(--text-dim);max-height:420px;overflow-y:auto;
+}
+.log-console .lg-ok{color:var(--mint);}
+.log-console .lg-fail{color:var(--coral);}
+.log-console .lg-warn{color:var(--amber);}
+.log-console .lg-time{color:var(--text-faint);margin-right:10px;}
+
+/* modal */
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(5,6,10,0.7);backdrop-filter:blur(4px);
+  display:none;align-items:center;justify-content:center;z-index:100;padding:24px;
+}
+.modal-overlay.show{display:flex;animation:fadeIn .2s ease;}
+.modal{
+  background:var(--surface);border:1px solid var(--border);border-radius:16px;max-width:620px;width:100%;
+  max-height:85vh;overflow-y:auto;padding:32px;
+}
+.modal-close{position:absolute;}
+.modal-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;}
+.modal-x{width:30px;height:30px;border-radius:8px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--text-dim);flex-shrink:0;}
+.modal-x:hover{color:var(--text);border-color:var(--text-dim);}
+.modal-id{font-family:var(--font-mono);font-size:12px;color:var(--text-faint);margin-bottom:6px;}
+.modal-title{font-family:var(--font-display);font-size:21px;font-weight:700;margin-bottom:14px;}
+.modal-badges{display:flex;gap:8px;margin-bottom:22px;flex-wrap:wrap;}
+.modal-sec{margin-bottom:20px;}
+.modal-sec h4{font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-faint);margin-bottom:8px;}
+.modal-sec p{font-size:13.5px;color:var(--text-dim);line-height:1.65;}
+.modal-sec ol{padding-left:18px;font-size:13.5px;color:var(--text-dim);line-height:1.9;}
+.evidence-row{display:flex;gap:10px;flex-wrap:wrap;}
+.ev-chip{
+  font-family:var(--font-mono);font-size:11.5px;padding:7px 12px;border:1px solid var(--border);
+  border-radius:7px;color:var(--text-dim);display:flex;align-items:center;gap:6px;
+}
+.conf-bar-wrap{display:flex;align-items:center;gap:10px;}
+.conf-bar{flex:1;height:6px;background:var(--border-soft);border-radius:4px;overflow:hidden;}
+.conf-bar-fill{height:100%;background:var(--coral);border-radius:4px;}
+.conf-num{font-family:var(--font-mono);font-size:13px;font-weight:600;}
+
+/* misc */
+.mono{font-family:var(--font-mono);}
+.reset-link{position:fixed;bottom:20px;right:20px;z-index:60;font-family:var(--font-mono);font-size:11.5px;color:var(--text-faint);background:var(--surface);border:1px solid var(--border);padding:8px 14px;border-radius:20px;opacity:.7;}
+.reset-link:hover{opacity:1;color:var(--text-dim);}
+
+@media (max-width:860px){
+  .hero{grid-template-columns:1fr;padding-top:56px;}
+  .hero h1{font-size:38px;}
+  .grid-3{grid-template-columns:1fr;}
+  .overview-grid{grid-template-columns:1fr;}
+  .stats-grid{grid-template-columns:repeat(2,1fr);}
+  .proj-grid{grid-template-columns:repeat(2,1fr);}
+  .sev-row{flex-wrap:wrap;}
+  .nav-links{display:none;}
+  .shots-grid{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+<div class="grid-bg"></div>
+
+<!-- ============ NAV ============ -->
+<div class="nav">
+  <div class="brand" onclick="goTo('landing')">
+    <div class="brand-mark">&gt;_</div>
+    TestQ
+  </div>
+  <div class="nav-links">
+    <a href="#" onclick="scrollToSection(event,'how')">How it works</a>
+    <a href="#" onclick="scrollToSection(event,'coverage')">Coverage</a>
+    <a href="#" onclick="goTo('dashboard');return false;">Sample report</a>
+  </div>
+  <div style="display:flex;gap:10px;">
+    <button class="nav-cta" onclick="goTo('input')">Sign in</button>
+    <button class="nav-cta primary" onclick="goTo('input')">Test a Repository</button>
+  </div>
+</div>
+
+<!-- ============ LANDING ============ -->
+<section class="screen active" id="screen-landing">
+  <div class="hero">
+    <div>
+      <div class="eyebrow"><span class="dot"></span> INDEPENDENT QA AGENT — LIVE</div>
+      <h1>Let AI build it.<br>Let us <span class="brk">try to break it.</span></h1>
+      <p class="sub">An independent AI QA agent that clones your repo, runs it in an isolated sandbox, and hunts for the bugs, edge cases, and broken flows your coding agent didn't think to check.</p>
+      <div class="hero-ctas">
+        <button class="btn btn-primary" onclick="goTo('input')">
+          Test a Repository
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </button>
+        <button class="btn btn-secondary" onclick="startDemo()">View Demo</button>
+      </div>
+      <div class="trust-row">
+        <span>◆ Sandboxed execution</span>
+        <span>◆ Playwright-driven</span>
+        <span>◆ Adversarial by default</span>
+      </div>
+    </div>
+
+    <div class="term">
+      <div class="term-bar">
+        <div class="term-dot" style="background:#ff5f57;"></div>
+        <div class="term-dot" style="background:#febc2e;"></div>
+        <div class="term-dot" style="background:#28c840;"></div>
+        <span class="t-title">TestQ — qa-run.log</span>
+      </div>
+      <div class="term-body" id="hero-term"></div>
+    </div>
+  </div>
+
+  <div class="section" id="how">
+    <div class="section-head">
+      <div class="section-tag">The Problem</div>
+      <h2>Your coding agent won't tell on itself.</h2>
+      <p class="lead">The same model that wrote your login flow will happily confirm it works. It rarely tries the empty password, the duplicate submission, or the unauthenticated route — because it's optimizing for "done," not "broken." TestQ exists to be the skeptical second opinion.</p>
+    </div>
+    <div class="flow-row">
+      <div class="flow-step">GitHub URL</div><div class="flow-arrow">→</div>
+      <div class="flow-step">Repo Analysis</div><div class="flow-arrow">→</div>
+      <div class="flow-step">Sandboxed Build</div><div class="flow-arrow">→</div>
+      <div class="flow-step">Adversarial Tests</div><div class="flow-arrow">→</div>
+      <div class="flow-step">Bug Diagnosis</div><div class="flow-arrow">→</div>
+      <div class="flow-step" style="border-color:var(--mint-dim);color:var(--mint);">QA Report</div>
+    </div>
+  </div>
+
+  <div class="section" id="coverage">
+    <div class="section-head">
+      <div class="section-tag">What It Actually Checks</div>
+      <h2>Not just uptime. Behavior.</h2>
+      <p class="lead">Browser flows, API contracts, and failure states — tested the way a suspicious QA engineer would, not the way a demo script would.</p>
+    </div>
+    <div class="grid-3">
+      <div class="card">
+        <div class="icon" style="background:var(--mint-dim);color:var(--mint);">◧</div>
+        <h3>Browser testing</h3>
+        <p>Playwright drives real user flows — navigation, forms, invalid input, auth walls — and captures console errors, failed requests, and screenshots the moment something breaks.</p>
+      </div>
+      <div class="card">
+        <div class="icon" style="background:#1c2a3d;color:var(--blue);">◨</div>
+        <h3>API testing</h3>
+        <p>Every detectable endpoint gets hit with missing params, bad types, boundary values, and unauthorized calls — inside the sandbox only, never against production.</p>
+      </div>
+      <div class="card">
+        <div class="icon" style="background:var(--coral-dim);color:var(--coral);">◩</div>
+        <h3>AI diagnosis</h3>
+        <p>Failures are triaged, not just listed. Each one is labeled Confirmed Bug, Possible Bug, or Environment Failure — with severity, confidence, and a probable root cause.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="section" style="padding-top:0;">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:44px 48px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:20px;">
+      <div>
+        <h2 style="font-family:var(--font-display);font-size:24px;margin-bottom:8px;">See it find real bugs in under a minute.</h2>
+        <p style="color:var(--text-dim);font-size:14px;">Run the demo repository — a Next.js task app with six intentionally shipped bugs.</p>
+      </div>
+      <button class="btn btn-primary" onclick="startDemo()">Run the Demo →</button>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>TestQ — prototype build, presentation only</span>
+    <span>Not connected to a live backend</span>
+  </div>
+</section>
+
+<!-- ============ INPUT ============ -->
+<section class="screen" id="screen-input">
+  <div class="center-wrap">
+    <div class="step-label"><span class="mono">01</span> — Repository Input</div>
+    <h1>Point us at your repo.</h1>
+    <p class="desc">We'll clone it into an isolated sandbox, detect the framework, and build an adversarial test plan before anything runs.</p>
+
+    <div class="input-card">
+      <label class="field-label">GitHub Repository URL</label>
+      <div class="input-row">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.57.1.78-.25.78-.55v-2.15c-3.2.7-3.87-1.36-3.87-1.36-.53-1.33-1.29-1.69-1.29-1.69-1.05-.72.08-.7.08-.7 1.16.08 1.78 1.19 1.78 1.19 1.03 1.77 2.71 1.26 3.37.96.1-.75.4-1.26.73-1.55-2.55-.29-5.23-1.28-5.23-5.68 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11 11 0 0 1 5.79 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.83 1.19 3.09 0 4.41-2.69 5.38-5.25 5.67.41.36.78 1.07.78 2.15v3.19c0 .3.21.66.79.55A10.52 10.52 0 0 0 23.5 12c0-6.35-5.15-11.5-11.5-11.5Z"/></svg>
+        <input id="repo-url" type="text" placeholder="https://github.com/user/project" oninput="validateUrl()">
+      </div>
+      <div class="err-msg" id="url-err">⚠ Enter a valid GitHub repository URL, e.g. https://github.com/user/project</div>
+      <div class="hint" style="margin-top:6px;">Public repositories only for this MVP.</div>
+
+      <div class="row-2">
+        <div>
+          <label class="field-label">Branch</label>
+          <div class="select-fake"><span class="mono">main</span> <span>⌄</span></div>
+        </div>
+        <div>
+          <label class="field-label">Testing mode</label>
+          <div class="select-fake"><span class="mono">Adversarial</span> <span>⌄</span></div>
+        </div>
+      </div>
+
+      <button class="start-btn" id="start-btn" onclick="handleStart()">
+        Start Testing
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </button>
+
+      <div class="divider-or">OR</div>
+
+      <div class="demo-card">
+        <div>
+          <div class="d-title">Demo Repository</div>
+          <div class="d-desc">taskflow-app · Next.js · 6 intentional bugs seeded</div>
+        </div>
+        <button class="demo-btn" onclick="startDemo()">Try Demo</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PIPELINE ============ -->
+<section class="screen" id="screen-pipeline">
+  <div class="pipeline-wrap">
+    <div class="pipeline-head">
+      <div>
+        <div class="step-label"><span class="mono">02</span> — Running Pipeline</div>
+        <h1 style="font-family:var(--font-display);font-size:26px;font-weight:600;">Testing in progress</h1>
+      </div>
+      <div class="repo-chip"><span class="dot-live"></span> acme/taskflow-app@main</div>
+    </div>
+
+    <div class="pipeline-list" id="pipeline-list"></div>
+
+    <div class="pipeline-log" id="pipeline-log"></div>
+
+    <div class="pl-cta">
+      <button class="btn btn-primary" id="view-report-btn" style="display:none;" onclick="goTo('dashboard')">
+        View Full Report
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ DASHBOARD ============ -->
+<section class="screen" id="screen-dashboard">
+  <div class="dash">
+    <div class="dash-top">
+      <div class="dash-title">
+        <h1>QA Report — taskflow-app</h1>
+        <div class="dash-repo mono">github.com/acme/taskflow-app @ main · run #A7F31C · completed just now</div>
+      </div>
+      <div class="dash-actions">
+        <button class="nav-cta" onclick="goTo('input')">New Test Run</button>
+        <button class="nav-cta primary" onclick="alert('This is a static prototype — export is not wired up.')">Export Report</button>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <div class="tab active" data-tab="overview" onclick="switchTab('overview')">Overview</div>
+      <div class="tab" data-tab="bugs" onclick="switchTab('bugs')">Bugs <span class="mono" style="color:var(--coral);">(6)</span></div>
+      <div class="tab" data-tab="tests" onclick="switchTab('tests')">Test Cases</div>
+      <div class="tab" data-tab="project" onclick="switchTab('project')">Project Analysis</div>
+      <div class="tab" data-tab="shots" onclick="switchTab('shots')">Screenshots</div>
+      <div class="tab" data-tab="logs" onclick="switchTab('logs')">Logs</div>
+      <div class="tab" data-tab="recs" onclick="switchTab('recs')">Recommendations</div>
+    </div>
+
+    <!-- OVERVIEW -->
+    <div class="tab-panel active" id="tab-overview">
+      <div class="overview-grid">
+        <div class="score-card">
+          <div class="score-ring">
+            <svg width="150" height="150" viewBox="0 0 150 150">
+              <circle class="bg-ring" cx="75" cy="75" r="65"></circle>
+              <circle class="fg-ring" id="score-arc" cx="75" cy="75" r="65"></circle>
+            </svg>
+            <div class="score-num">
+              <div class="n" id="score-number">0</div>
+              <div class="lbl">QA Score</div>
+            </div>
+          </div>
+          <div class="score-verdict">Needs work before shipping — <b>1 critical</b> security bug found alongside validation gaps.</div>
+        </div>
+
+        <div>
+          <div class="stats-grid">
+            <div class="stat-box"><div class="s-num">41</div><div class="s-lbl">TOTAL TESTS</div></div>
+            <div class="stat-box pass"><div class="s-num">31</div><div class="s-lbl">PASSED</div></div>
+            <div class="stat-box fail"><div class="s-num">10</div><div class="s-lbl">FAILED</div></div>
+            <div class="stat-box"><div class="s-num">6</div><div class="s-lbl">CONFIRMED BUGS</div></div>
+          </div>
+          <div class="sev-row">
+            <div class="sev-pill"><div class="sv-top"><span class="sv-dot" style="background:var(--coral);"></span><span class="sv-num">1</span></div><div class="sv-lbl">Critical</div></div>
+            <div class="sev-pill"><div class="sv-top"><span class="sv-dot" style="background:#ff9b5e;"></span><span class="sv-num">2</span></div><div class="sv-lbl">High</div></div>
+            <div class="sev-pill"><div class="sv-top"><span class="sv-dot" style="background:var(--amber);"></span><span class="sv-num">2</span></div><div class="sv-lbl">Medium</div></div>
+            <div class="sev-pill"><div class="sv-top"><span class="sv-dot" style="background:var(--blue);"></span><span class="sv-num">1</span></div><div class="sv-lbl">Low</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="rec-list">
+        <h3>Top priority fixes</h3>
+        <div class="rec-item">
+          <span class="rec-num">01</span>
+          <p>Protect <code class="mono">/admin</code> with authentication middleware — currently reachable by anyone with the URL.<span class="rec-tag">Security · Critical</span></p>
+        </div>
+        <div class="rec-item">
+          <span class="rec-num">02</span>
+          <p>Add server-side validation to the login form so empty-password submissions are rejected, not silently accepted.<span class="rec-tag">Validation · High</span></p>
+        </div>
+        <div class="rec-item">
+          <span class="rec-num">03</span>
+          <p>Reject duplicate task titles server-side instead of allowing silent duplicate creation.<span class="rec-tag">Data Integrity · High</span></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- BUGS -->
+    <div class="tab-panel" id="tab-bugs"></div>
+
+    <!-- TEST CASES -->
+    <div class="tab-panel" id="tab-tests">
+      <table class="tc-table">
+        <thead><tr><th>Status</th><th>Test</th><th>Category</th><th>Severity</th><th>Duration</th></tr></thead>
+        <tbody id="tc-tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- PROJECT ANALYSIS -->
+    <div class="tab-panel" id="tab-project">
+      <div class="proj-grid">
+        <div class="proj-box"><div class="p-lbl">Framework</div><div class="p-val">Next.js 14</div></div>
+        <div class="proj-box"><div class="p-lbl">Language</div><div class="p-val">TypeScript</div></div>
+        <div class="proj-box"><div class="p-lbl">Package Manager</div><div class="p-val">npm</div></div>
+        <div class="proj-box"><div class="p-lbl">Entry Point</div><div class="p-val mono" style="font-size:14px;">app/page.tsx</div></div>
+        <div class="proj-box"><div class="p-lbl">Pages</div><div class="p-val">12</div></div>
+        <div class="proj-box"><div class="p-lbl">API Routes</div><div class="p-val">8</div></div>
+        <div class="proj-box"><div class="p-lbl">Existing Tests</div><div class="p-val">14</div></div>
+        <div class="proj-box"><div class="p-lbl">Dependencies</div><div class="p-val">142</div></div>
+      </div>
+      <div class="file-tree">
+<div><span class="fold">app/</span></div>
+<div>&nbsp;&nbsp;├─ page.tsx <span class="dim">— home</span></div>
+<div>&nbsp;&nbsp;├─ <span class="fold">admin/</span>page.tsx <span class="dim">— ⚠ no auth guard detected</span></div>
+<div>&nbsp;&nbsp;├─ <span class="fold">login/</span>page.tsx</div>
+<div>&nbsp;&nbsp;├─ <span class="fold">tasks/</span>[id]/page.tsx</div>
+<div>&nbsp;&nbsp;└─ <span class="fold">api/</span></div>
+<div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├─ auth/route.ts</div>
+<div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├─ tasks/route.ts <span class="dim">— no duplicate check</span></div>
+<div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└─ tasks/[id]/route.ts</div>
+<div>package.json <span class="dim">· 142 deps</span></div>
+<div>next.config.js</div>
+      </div>
+    </div>
+
+    <!-- SCREENSHOTS -->
+    <div class="tab-panel" id="tab-shots">
+      <div class="shots-grid" id="shots-grid"></div>
+    </div>
+
+    <!-- LOGS -->
+    <div class="tab-panel" id="tab-logs">
+      <div class="log-console" id="log-console"></div>
+    </div>
+
+    <!-- RECOMMENDATIONS -->
+    <div class="tab-panel" id="tab-recs">
+      <div class="rec-list" style="margin-top:0;">
+        <h3>Recommended improvements</h3>
+        <div class="rec-item"><span class="rec-num">01</span><p>Add authentication middleware to <code class="mono">/admin</code> and any route matching admin/internal patterns.<span class="rec-tag">Security · Critical</span></p></div>
+        <div class="rec-item"><span class="rec-num">02</span><p>Add server-side validation to the login form — reject empty or malformed passwords before hitting the auth provider.<span class="rec-tag">Validation · High</span></p></div>
+        <div class="rec-item"><span class="rec-num">03</span><p>Enforce unique task titles per user at the API layer, not just in the UI.<span class="rec-tag">Data Integrity · High</span></p></div>
+        <div class="rec-item"><span class="rec-num">04</span><p>Return a proper 404 page for deleted or nonexistent task detail routes instead of an unhandled client exception.<span class="rec-tag">Error Handling · Medium</span></p></div>
+        <div class="rec-item"><span class="rec-num">05</span><p>Sanitize the task filter query before it reaches the render path to stop the console error on special characters.<span class="rec-tag">Robustness · Medium</span></p></div>
+        <div class="rec-item"><span class="rec-num">06</span><p>Add a visible focus state to the mobile nav toggle for keyboard and screen-reader users.<span class="rec-tag">Accessibility · Low</span></p></div>
+        <div class="rec-item"><span class="rec-num">07</span><p>Add regression tests for login validation and duplicate task creation so these don't regress silently.<span class="rec-tag">Test Coverage</span></p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ BUG MODAL ============ -->
+<div class="modal-overlay" id="bug-modal">
+  <div class="modal" id="modal-content"></div>
+</div>
+
+<a href="#" class="reset-link" onclick="goTo('landing');return false;">↺ restart prototype</a>
+
+<script>
+/* ============================================================
+   DATA
+============================================================ */
+const bugs = [
+  {
+    id:"BUG-001", title:"Unauthenticated access to admin dashboard", severity:"critical", category:"Security",
+    confidence:96, status:"Confirmed Bug",
+    expected:"Unauthenticated users navigating to /admin should be redirected to the login page.",
+    actual:"The admin dashboard renders fully for anonymous users — no session or role check occurs before the page mounts.",
+    cause:"Authentication middleware is registered for /dashboard/* but the route matcher does not include /admin/*, so the route is served unprotected.",
+    repro:["Start the application with no active session","Navigate directly to /admin","Observe that the dashboard loads with full data, no redirect"],
+    evidence:["Screenshot","Console log","Network trace"]
+  },
+  {
+    id:"BUG-002", title:"Empty password submits without validation", severity:"high", category:"Validation",
+    confidence:91, status:"Confirmed Bug",
+    expected:"Submitting the login form with an empty password should show inline validation and block the request.",
+    actual:"The form submits a POST to /api/auth with an empty password field; the server returns a generic 401 with no field-level feedback.",
+    cause:"Client-side validation only checks that the email field is non-empty; the password field has no required or minLength constraint.",
+    repro:["Open /login","Enter a valid email, leave password blank","Click Sign In"],
+    evidence:["Screenshot","Network trace"]
+  },
+  {
+    id:"BUG-003", title:"Duplicate task titles silently accepted", severity:"high", category:"Data Integrity",
+    confidence:88, status:"Confirmed Bug",
+    expected:"Creating a task with a title identical to an existing task should be rejected or flagged.",
+    actual:"Two tasks with the exact same title are created without warning; both appear in the list as separate entries.",
+    cause:"The POST /api/tasks handler has no uniqueness check against existing titles for the same user before insert.",
+    repro:["Create a task titled \"Ship release\"","Create a second task titled \"Ship release\"","Observe both appear in the task list"],
+    evidence:["Screenshot","Network trace"]
+  },
+  {
+    id:"BUG-004", title:"Unhandled crash on deleted task detail route", severity:"medium", category:"Error Handling",
+    confidence:82, status:"Confirmed Bug",
+    expected:"Navigating to a task detail page for a deleted task should show a friendly 404 or empty state.",
+    actual:"The page throws an unhandled client exception and renders a blank white screen.",
+    cause:"tasks/[id]/page.tsx assumes the fetch always resolves with data and accesses task.title without a null check.",
+    repro:["Delete an existing task","Navigate directly to its previous /tasks/[id] URL"],
+    evidence:["Screenshot","Console log"]
+  },
+  {
+    id:"BUG-005", title:"Console error when filtering with special characters", severity:"medium", category:"Robustness",
+    confidence:74, status:"Possible Bug",
+    expected:"Filtering tasks with special characters like % or [ should return an empty result set without errors.",
+    actual:"A regex construction error is thrown in the browser console; the filtered list silently stops updating.",
+    cause:"The filter value is passed directly into a RegExp constructor without escaping, likely throwing on unescaped metacharacters.",
+    repro:["Open the task list","Type % or [ into the filter field"],
+    evidence:["Console log"]
+  },
+  {
+    id:"BUG-006", title:"Missing focus state on mobile nav toggle", severity:"low", category:"Accessibility",
+    confidence:69, status:"Possible Bug",
+    expected:"The mobile nav toggle should show a visible focus ring when reached via keyboard.",
+    actual:"Tabbing to the hamburger menu button produces no visible focus indicator.",
+    cause:"outline: none is applied globally to buttons without a focus-visible replacement.",
+    repro:["Load the site on a narrow viewport","Tab through the header using keyboard only"],
+    evidence:["Screenshot"]
+  }
+];
+
+const tests = [
+  {name:"Homepage loads successfully", status:"pass", cat:"Smoke", sev:"—", dur:"0.8s"},
+  {name:"Navigation between all pages", status:"pass", cat:"Navigation", sev:"—", dur:"2.1s"},
+  {name:"Login with valid credentials", status:"pass", cat:"Auth", sev:"—", dur:"1.4s"},
+  {name:"Login with empty password", status:"fail", cat:"Validation", sev:"High", dur:"1.1s"},
+  {name:"Login with invalid email format", status:"pass", cat:"Validation", sev:"—", dur:"0.9s"},
+  {name:"Unauthenticated access to /admin", status:"fail", cat:"Security", sev:"Critical", dur:"0.6s"},
+  {name:"Create task with valid title", status:"pass", cat:"Functionality", sev:"—", dur:"1.3s"},
+  {name:"Create duplicate task title", status:"fail", cat:"Data Integrity", sev:"High", dur:"1.5s"},
+  {name:"Delete task and revisit URL", status:"fail", cat:"Error Handling", sev:"Medium", dur:"1.0s"},
+  {name:"Filter tasks with special characters", status:"fail", cat:"Robustness", sev:"Medium", dur:"0.7s"},
+  {name:"API health endpoint responds", status:"pass", cat:"API", sev:"—", dur:"0.3s"},
+  {name:"API rejects missing required fields", status:"pass", cat:"API", sev:"—", dur:"0.5s"},
+  {name:"API rejects unauthorized task update", status:"pass", cat:"API", sev:"—", dur:"0.4s"},
+  {name:"404 page for unknown route", status:"pass", cat:"Navigation", sev:"—", dur:"0.5s"},
+  {name:"Mobile nav keyboard focus", status:"fail", cat:"Accessibility", sev:"Low", dur:"0.6s"},
+  {name:"Form resubmission on network retry", status:"pass", cat:"Functionality", sev:"—", dur:"1.7s"}
+];
+
+const shots = [
+  {title:"Admin dashboard — no auth", sub:"BUG-001 · /admin"},
+  {title:"Login — empty password", sub:"BUG-002 · /login"},
+  {title:"Task list — duplicate entries", sub:"BUG-003 · /tasks"},
+  {title:"Blank crash — deleted task", sub:"BUG-004 · /tasks/[id]"},
+  {title:"Console error — filter input", sub:"BUG-005 · /tasks"},
+  {title:"Missing focus ring — mobile nav", sub:"BUG-006 · header"}
+];
+
+const consoleLogs = [
+  {t:"14:02:01", type:"ok", msg:"GET /  200 OK  (312ms)"},
+  {t:"14:02:03", type:"ok", msg:"GET /tasks  200 OK  (198ms)"},
+  {t:"14:02:06", type:"warn", msg:"POST /api/auth  401  empty password field accepted by client"},
+  {t:"14:02:09", type:"fail", msg:"GET /admin  200 OK  — expected 302 redirect to /login"},
+  {t:"14:02:14", type:"ok", msg:"POST /api/tasks  201 Created  (\"Ship release\")"},
+  {t:"14:02:16", type:"fail", msg:"POST /api/tasks  201 Created  — duplicate title \"Ship release\" not rejected"},
+  {t:"14:02:22", type:"fail", msg:"Uncaught TypeError: Cannot read properties of undefined (reading 'title') at tasks/[id]/page.tsx:34"},
+  {t:"14:02:27", type:"fail", msg:"Uncaught SyntaxError: Invalid regular expression: /[/ — task filter input"},
+  {t:"14:02:31", type:"ok", msg:"GET /api/health  200 OK  (41ms)"},
+  {t:"14:02:33", type:"warn", msg:"Accessibility: button.nav-toggle has no visible :focus-visible style"}
+];
+
+/* ============================================================
+   SCREEN NAVIGATION
+============================================================ */
+function goTo(name){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('screen-'+name).classList.add('active');
+  window.scrollTo({top:0,behavior:'instant' in window ? 'instant' : 'auto'});
+  if(name==='dashboard') animateScore();
+}
+function scrollToSection(e,id){
+  e.preventDefault();
+  document.getElementById(id).scrollIntoView({behavior:'smooth'});
+}
+
+/* ============================================================
+   HERO TERMINAL TYPE-ON ANIMATION
+============================================================ */
+const heroLines = [
+  {t:"$ TestQ run acme/taskflow-app --mode adversarial", cls:"muted"},
+  {t:"✓ cloned repository into sandbox", cls:"ok"},
+  {t:"✓ next.js 14 detected · typescript", cls:"ok"},
+  {t:"✓ dependencies installed (142 packages)", cls:"ok"},
+  {t:"✓ build successful · app running on :3000", cls:"ok"},
+  {t:"→ generating adversarial test cases...", cls:"muted"},
+  {t:"→ running 41 tests across browser + api...", cls:"muted"},
+  {t:"✗ FAIL  unauthenticated access to /admin", cls:"fail"},
+  {t:"✗ FAIL  empty password login accepted", cls:"fail"},
+  {t:"◆ 6 bugs found · QA score 72/100", cls:"warn"},
+];
+function typeHero(){
+  const el = document.getElementById('hero-term');
+  el.innerHTML = "";
+  let i = 0;
+  function addLine(){
+    if(i >= heroLines.length){
+      const cursorDiv = document.createElement('div');
+      cursorDiv.className = 'line';
+      cursorDiv.style.opacity = 1;
+      cursorDiv.innerHTML = '<span class="cursor"></span>';
+      el.appendChild(cursorDiv);
+      return;
+    }
+    const line = heroLines[i];
+    const div = document.createElement('div');
+    div.className = 'line ' + line.cls;
+    div.textContent = line.t;
+    el.appendChild(div);
+    i++;
+    setTimeout(addLine, i<=6 ? 420 : 620);
+  }
+  addLine();
+}
+typeHero();
+
+/* ============================================================
+   INPUT SCREEN VALIDATION
+============================================================ */
+function validateUrl(){
+  const val = document.getElementById('repo-url').value.trim();
+  const err = document.getElementById('url-err');
+  const btn = document.getElementById('start-btn');
+  const looksValid = /^https?:\/\/github\.com\/[\w.-]+\/[\w.-]+\/?$/.test(val);
+  if(val.length===0){ err.classList.remove('show'); btn.disabled=false; return; }
+  if(!looksValid){ err.classList.add('show'); } else { err.classList.remove('show'); }
+}
+function handleStart(){
+  const val = document.getElementById('repo-url').value.trim();
+  const looksValid = /^https?:\/\/github\.com\/[\w.-]+\/[\w.-]+\/?$/.test(val);
+  if(!looksValid){
+    document.getElementById('url-err').classList.add('show');
+    return;
+  }
+  startDemo();
+}
+
+/* ============================================================
+   PIPELINE ANIMATION
+============================================================ */
+const pipelineSteps = [
+  {title:"Repository", sub:"Connected", key:"repo"},
+  {title:"Project Detection", sub:"Next.js 14 detected", key:"detect"},
+  {title:"Dependencies", sub:"142 packages installed", key:"deps"},
+  {title:"Build", sub:"Successful", key:"build"},
+  {title:"Application", sub:"Running on :3000", key:"run"},
+  {title:"Test Generation", sub:"41 adversarial tests generated", key:"gen"},
+  {title:"Browser Testing", sub:"18 flows executed via Playwright", key:"browser"},
+  {title:"API Testing", sub:"8 endpoints tested", key:"api"},
+  {title:"AI Analysis", sub:"6 bugs triaged & confirmed", key:"ai"},
+];
+const pipelineLogLines = [
+  {msg:"git clone https://github.com/acme/taskflow-app", cls:"l-ok"},
+  {msg:"detected framework: next.js (confidence 0.98)", cls:"l-ok"},
+  {msg:"npm install — 142 packages, 0 vulnerabilities", cls:"l-ok"},
+  {msg:"npm run build — compiled successfully in 8.2s", cls:"l-ok"},
+  {msg:"server started — pid 4821, port 3000", cls:"l-ok"},
+  {msg:"generating adversarial scenarios from route map...", cls:"l-warn"},
+  {msg:"playwright: 18 browser flows queued", cls:"l-ok"},
+  {msg:"playwright: FAIL — /admin reachable without session", cls:"l-fail"},
+  {msg:"playwright: FAIL — empty password accepted", cls:"l-fail"},
+  {msg:"api: 23 requests sent across 8 endpoints", cls:"l-ok"},
+  {msg:"api: FAIL — duplicate task title not rejected", cls:"l-fail"},
+  {msg:"ai analysis: triaging 10 failures...", cls:"l-warn"},
+  {msg:"ai analysis: 6 confirmed, 0 environment failures", cls:"l-ok"},
+  {msg:"report generated — qa score 72/100", cls:"l-ok"},
+];
+
+let pipelineTimers = [];
+function clearPipelineTimers(){ pipelineTimers.forEach(t=>clearTimeout(t)); pipelineTimers=[]; }
+
+function buildPipelineList(){
+  const list = document.getElementById('pipeline-list');
+  list.innerHTML = "";
+  pipelineSteps.forEach((s,idx)=>{
+    const item = document.createElement('div');
+    item.className = 'pl-item';
+    item.id = 'pl-'+s.key;
+    item.innerHTML = `
+      <div class="pl-icon" id="pl-icon-${s.key}">${idx+1}</div>
+      <div class="pl-text">
+        <div class="pl-title">${s.title}</div>
+        <div class="pl-sub" id="pl-sub-${s.key}">Pending</div>
+      </div>
+      <div class="pl-count mono" id="pl-count-${s.key}"></div>
+    `;
+    list.appendChild(item);
+  });
+}
+
+function runPipeline(){
+  clearPipelineTimers();
+  buildPipelineList();
+  document.getElementById('pipeline-log').innerHTML = "";
+  document.getElementById('view-report-btn').style.display = 'none';
+
+  pipelineSteps.forEach((s, idx)=>{
+    const t1 = setTimeout(()=>{
+      const el = document.getElementById('pl-'+s.key);
+      const icon = document.getElementById('pl-icon-'+s.key);
+      el.classList.add('active');
+      icon.innerHTML = '<span class="spin"></span>';
+    }, idx*750);
+    pipelineTimers.push(t1);
+
+    const t2 = setTimeout(()=>{
+      const el = document.getElementById('pl-'+s.key);
+      const icon = document.getElementById('pl-icon-'+s.key);
+      el.classList.remove('active');
+      el.classList.add('done');
+      icon.textContent = '✓';
+      document.getElementById('pl-sub-'+s.key).textContent = s.sub;
+    }, idx*750 + 600);
+    pipelineTimers.push(t2);
+  });
+
+  // log lines, slightly offset
+  pipelineLogLines.forEach((l, idx)=>{
+    const t = setTimeout(()=>{
+      const log = document.getElementById('pipeline-log');
+      const div = document.createElement('div');
+      div.className = l.cls;
+      div.textContent = "› " + l.msg;
+      log.appendChild(div);
+      log.scrollTop = log.scrollHeight;
+    }, 400 + idx*520);
+    pipelineTimers.push(t);
+  });
+
+  const finalT = setTimeout(()=>{
+    document.getElementById('view-report-btn').style.display = 'inline-flex';
+  }, pipelineSteps.length*750 + 500);
+  pipelineTimers.push(finalT);
+}
+
+function startDemo(){
+  goTo('pipeline');
+  runPipeline();
+}
+
+/* ============================================================
+   DASHBOARD TABS
+============================================================ */
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===name));
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+}
+
+function severityColor(sev){
+  return {critical:'var(--coral)', high:'#ff9b5e', medium:'var(--amber)', low:'var(--blue)'}[sev] || 'var(--text-dim)';
+}
+
+function buildBugs(){
+  const wrap = document.getElementById('tab-bugs');
+  wrap.innerHTML = "";
+  bugs.forEach(b=>{
+    const div = document.createElement('div');
+    div.className = 'bug-item';
+    div.onclick = ()=>openBugModal(b.id);
+    div.innerHTML = `
+      <div class="bug-top">
+        <div>
+          <div class="bug-id mono">${b.id}</div>
+          <div class="bug-title">${b.title}</div>
+        </div>
+        <div class="bug-badges">
+          <span class="badge ${b.severity}">${b.severity}</span>
+        </div>
+      </div>
+      <div class="bug-meta">
+        <span>◆ ${b.category}</span>
+        <span>◆ ${b.confidence}% confidence</span>
+        <span>◆ ${b.status}</span>
+      </div>
+    `;
+    wrap.appendChild(div);
+  });
+}
+
+function buildTests(){
+  const tbody = document.getElementById('tc-tbody');
+  tbody.innerHTML = "";
+  tests.forEach(t=>{
+    const tr = document.createElement('tr');
+    const icon = t.status==='pass' ? '✓' : '✗';
+    tr.innerHTML = `
+      <td><span class="tc-status ${t.status}">${icon} ${t.status==='pass'?'Pass':'Fail'}</span></td>
+      <td>${t.name}</td>
+      <td class="tc-cat">${t.cat}</td>
+      <td class="tc-cat" style="${t.sev!=='—'?`color:${severityColor(t.sev.toLowerCase())}`:''}">${t.sev}</td>
+      <td class="tc-dur">${t.dur}</td>
+    `;
+    if(t.status==='fail'){
+      tr.style.cursor='pointer';
+      tr.onclick = ()=>{
+        const match = bugs.find(b=>t.name.toLowerCase().includes(b.category.toLowerCase().split(' ')[0]) || b.title.toLowerCase().includes(t.name.toLowerCase().split(' ')[0]));
+        if(match) openBugModal(match.id);
+      };
+    }
+    tbody.appendChild(tr);
+  });
+}
+
+function buildShots(){
+  const grid = document.getElementById('shots-grid');
+  grid.innerHTML = "";
+  shots.forEach(s=>{
+    const div = document.createElement('div');
+    div.className = 'shot-card';
+    div.innerHTML = `
+      <div class="shot-thumb"><div class="crosshair"></div></div>
+      <div class="shot-meta">
+        <div class="sm-title">${s.title}</div>
+        <div class="sm-sub mono">${s.sub}</div>
+      </div>
+    `;
+    grid.appendChild(div);
+  });
+}
+
+function buildLogs(){
+  const el = document.getElementById('log-console');
+  el.innerHTML = "";
+  consoleLogs.forEach(l=>{
+    const div = document.createElement('div');
+    div.innerHTML = `<span class="lg-time">${l.t}</span><span class="lg-${l.type}">${l.msg}</span>`;
+    el.appendChild(div);
+  });
+}
+
+function animateScore(){
+  const circumference = 2 * Math.PI * 65;
+  const target = 72;
+  const arc = document.getElementById('score-arc');
+  arc.style.stroke = target >= 80 ? 'var(--mint)' : target >= 50 ? 'var(--amber)' : 'var(--coral)';
+  const offset = circumference - (target/100)*circumference;
+  requestAnimationFrame(()=>{ arc.style.strokeDashoffset = offset; });
+
+  const numEl = document.getElementById('score-number');
+  let cur = 0;
+  const step = ()=>{
+    cur += 3;
+    if(cur >= target){ numEl.textContent = target; return; }
+    numEl.textContent = cur;
+    requestAnimationFrame(step);
+  };
+  step();
+}
+
+/* ============================================================
+   BUG MODAL
+============================================================ */
+function openBugModal(id){
+  const b = bugs.find(x=>x.id===id);
+  if(!b) return;
+  const content = document.getElementById('modal-content');
+  content.innerHTML = `
+    <div class="modal-head">
+      <div>
+        <div class="modal-id mono">${b.id}</div>
+        <div class="modal-title">${b.title}</div>
+      </div>
+      <button class="modal-x" onclick="closeBugModal()">✕</button>
+    </div>
+    <div class="modal-badges">
+      <span class="badge ${b.severity}">${b.severity}</span>
+      <span class="badge" style="background:var(--surface-2);color:var(--text-dim);">${b.category}</span>
+      <span class="badge" style="background:${b.status==='Confirmed Bug'?'var(--mint-dim)':'var(--surface-2)'};color:${b.status==='Confirmed Bug'?'var(--mint)':'var(--text-dim)'};">${b.status}</span>
+    </div>
+
+    <div class="modal-sec">
+      <h4>Confidence</h4>
+      <div class="conf-bar-wrap">
+        <div class="conf-bar"><div class="conf-bar-fill" style="width:${b.confidence}%;background:${severityColor(b.severity)};"></div></div>
+        <div class="conf-num">${b.confidence}%</div>
+      </div>
+    </div>
+
+    <div class="modal-sec"><h4>Expected behavior</h4><p>${b.expected}</p></div>
+    <div class="modal-sec"><h4>Actual behavior</h4><p>${b.actual}</p></div>
+    <div class="modal-sec"><h4>Probable root cause</h4><p>${b.cause}</p></div>
+    <div class="modal-sec">
+      <h4>Reproduction steps</h4>
+      <ol>${b.repro.map(r=>`<li>${r}</li>`).join('')}</ol>
+    </div>
+    <div class="modal-sec">
+      <h4>Evidence</h4>
+      <div class="evidence-row">
+        ${b.evidence.map(e=>`<span class="ev-chip">◆ ${e}</span>`).join('')}
+      </div>
+    </div>
+  `;
+  document.getElementById('bug-modal').classList.add('show');
+}
+function closeBugModal(){
+  document.getElementById('bug-modal').classList.remove('show');
+}
+document.getElementById('bug-modal').addEventListener('click', (e)=>{
+  if(e.target.id==='bug-modal') closeBugModal();
+});
+document.addEventListener('keydown', (e)=>{
+  if(e.key==='Escape') closeBugModal();
+});
+
+/* ============================================================
+   INIT
+============================================================ */
+buildBugs();
+buildTests();
+buildShots();
+buildLogs();
+</script>
+</body>
+</html>
