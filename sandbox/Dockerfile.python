@@ -1,0 +1,25 @@
+# TestQ Python Sandbox
+# Supports: FastAPI, Python web applications
+# This image is used for building and running untrusted Python projects.
+
+FROM python:3.13-slim
+
+# Install useful tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create workspace directory
+RUN mkdir -p /workspace
+WORKDIR /workspace
+
+# Upgrade pip
+RUN pip install --no-cache-dir --upgrade pip
+
+# Set environment defaults
+ENV PYTHONUNBUFFERED=1
+ENV PORT=8000
+
+# Keep container alive — commands are executed via docker exec
+CMD ["sleep", "infinity"]

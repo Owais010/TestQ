@@ -1,0 +1,35 @@
+# TestQ Node.js Sandbox
+# Supports: Next.js, React/Vite, Node.js applications
+# This image is used for building and running untrusted JS/TS projects.
+
+FROM node:20-slim
+
+# Install useful tools and all package managers
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install pnpm globally (yarn already included in node:20-slim)
+RUN npm install -g pnpm
+
+# Create workspace directory
+RUN mkdir -p /workspace
+WORKDIR /workspace
+
+# Create a non-root user for running applications
+RUN groupadd -r testq && useradd -r -g testq -d /workspace testq
+RUN chown -R testq:testq /workspace
+
+# Don't run as root by default
+# NOTE: Some npm installs need root, so we start as root
+# and the pipeline handles permissions
+USER root
+
+# Set environment defaults
+ENV NODE_ENV=production
+ENV PORT=3000
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# Keep container alive — commands are executed via docker exec
+CMD ["sleep", "infinity"]
