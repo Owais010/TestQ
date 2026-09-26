@@ -99,3 +99,41 @@ class HealthChecker:
             error=last_error or "Max retries exceeded",
             attempts=self.max_retries,
         )
+
+    async def check_sandbox(self, sandbox, container_id, port, control, blocking, exec_id=None):
+        """Probe loopback inside a network-disconnected container; no redirects."""
+        url = f"http://127.0.0.1:{port}"
+        error = "Application did not respond"
+        attempts_log: list[str] = []
+        for attempt in range(1, self.max_retries + 1):
+            control.check()
+            if exec_id:
+                state = await blocking(sandbox.client.api.exec_inspect, exec_id)
+                if not state["Running"]:
+                    error = f"Application exited with code {state['ExitCode']}"
+                    break
+            result = await blocking(
+                sandbox.execute, container_id,
+                f"curl --noproxy '*' --max-time {self.timeout} -s -o /dev/null -w '%{{http_code}}' {url}",
+                timeout=self.timeout + 2, source="_health_probe",
+            )
+            code = int(result.stdout) if result.stdout.isdigit() else 0
+            if result.exit_code == 0 and (200 <= code < 400 or code in (401, 403)):
+                attempts_log.append(f"Attempt {attempt}: HTTP {code}")
+                return HealthCheckResult(
+                    is_healthy=True, url=url, status_code=code, attempts=attempt,
+                    details="; ".join(attempts_log),
+                )
+            if code == 0:
+                attempts_log.append(f"Attempt {attempt}: connection pending")
+            else:
+                attempts_log.append(f"Attempt {attempt}: HTTP {code}")
+            error = f"HTTP {code}: {result.stderr}"
+            until = time.monotonic() + self.retry_interval
+            while time.monotonic() < until:
+                control.check()
+                await asyncio.sleep(0.1)
+        return HealthCheckResult(
+            is_healthy=False, url=url, error=error, attempts=attempt,
+            details="; ".join(attempts_log),
+        )

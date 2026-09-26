@@ -57,3 +57,8 @@ htmlcov/
 
 # Spec documents (tracked separately)
 # *.docx
+
+# Agents and Scratch
+.agents/
+scratch/
+frontend/dist/

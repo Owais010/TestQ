@@ -12,7 +12,7 @@ class ProjectCreate(BaseModel):
         description="GitHub repository URL",
         examples=["https://github.com/user/project"],
     )
-    branch: str = Field("main", description="Branch to analyze")
+    branch: str | None = Field(None, description="Branch to analyze; omitted uses remote default")
 
 
 class ProjectResponse(BaseModel):

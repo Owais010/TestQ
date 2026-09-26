@@ -1,0 +1,11 @@
+﻿.git
+.env*
+**/__pycache__
+**/.pytest_cache
+**/venv
+**/.venv
+**/node_modules
+evidence
+workspaces
+*.db
+*.docx

@@ -12,13 +12,20 @@ from app.main import app
 
 
 @pytest_asyncio.fixture
-async def test_db():
+async def test_db(monkeypatch):
     """Create a fresh test database."""
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
     session_maker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    # API contract tests do not execute external repositories. Pipeline behavior
+    # is exercised separately against this same kind of isolated session factory.
+    from unittest.mock import AsyncMock
+    from app.api import test_runs
+    from app.worker.control import controls
+    monkeypatch.setattr(test_runs, "async_session", session_maker)
+    monkeypatch.setattr(test_runs, "_run_pipeline", AsyncMock())
 
     async def override_get_db():
         async with session_maker() as session:
@@ -32,6 +39,7 @@ async def test_db():
     app.dependency_overrides[get_db] = override_get_db
     yield
     app.dependency_overrides.clear()
+    controls.clear()
     await engine.dispose()
 
 
@@ -60,6 +68,15 @@ class TestHealthEndpoint:
         assert response.status_code == 200
         data = response.json()
         assert data["name"] == "TestQ"
+        assert "dashboard" in data
+
+    @pytest.mark.asyncio
+    async def test_dashboard(self, client):
+        response = await client.get("/dashboard")
+        assert response.status_code == 200
+        assert "text/html" in response.headers.get("content-type", "")
+        assert "TestQ" in response.text
+
 
 
 class TestProjectsAPI:
@@ -178,3 +195,64 @@ class TestTestRunsAPI:
         logs_resp = await client.get(f"/api/test-runs/{run_id}/logs")
         assert logs_resp.status_code == 200
         assert "logs" in logs_resp.json()
+
+    @pytest.mark.asyncio
+    async def test_create_test_run_testing_requires_discovery(self, client):
+        """Testing without discovery must be rejected with HTTP 400."""
+        response = await client.post(
+            "/api/test-runs",
+            json={
+                "repository_url": "https://github.com/test/no-discovery",
+                "discover": False,
+                "testing_enabled": True,
+            },
+        )
+        assert response.status_code == 400
+        assert "Testing requires discovery to be enabled" in response.json()["detail"]
+
+    @pytest.mark.asyncio
+    async def test_create_test_run_testing_enabled_valid(self, client):
+        """Valid testing request with discovery enabled must be accepted with HTTP 201."""
+        response = await client.post(
+            "/api/test-runs",
+            json={
+                "repository_url": "https://github.com/test/valid-testing",
+                "discover": True,
+                "testing_enabled": True,
+            },
+        )
+        assert response.status_code == 201
+        data = response.json()
+        assert data["testing_enabled"] is True
+        assert data["discovery_enabled"] is True
+
+    @pytest.mark.asyncio
+    async def test_list_test_runs(self, client):
+        """GET /api/test-runs?limit=1 must return 200 with runs and total."""
+        # Create two test runs
+        await client.post(
+            "/api/test-runs",
+            json={"repository_url": "https://github.com/test/list-run-1", "branch": "main"},
+        )
+        await client.post(
+            "/api/test-runs",
+            json={"repository_url": "https://github.com/test/list-run-2", "branch": "main"},
+        )
+
+        # Query with limit=1
+        resp = await client.get("/api/test-runs?limit=1")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "runs" in data
+        assert "total" in data
+        assert len(data["runs"]) == 1
+        assert data["total"] >= 2
+
+        # Query without limit (default limit=10)
+        resp_all = await client.get("/api/test-runs")
+        assert resp_all.status_code == 200
+        data_all = resp_all.json()
+        assert len(data_all["runs"]) >= 2
+        # Check ordering: newest first
+        assert data_all["runs"][0]["created_at"] >= data_all["runs"][1]["created_at"]
+

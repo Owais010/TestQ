@@ -5,6 +5,445 @@
 
 ---
 
+## Current Phase 4.5 Hackathon Hardening (2026-09-25)
+
+Phase 4.5 extends TestQ with lightweight, safe AI Failure Analysis, a controlled demo
+e-commerce store with intentional defects, and an interactive real-time QA dashboard.
+The core architectural rule remains strictly enforced: **AI reasons. Deterministic code executes.**
+The AI has zero execution privileges.
+
+### Complete Hackathon Architecture
+
+```text
+GitHub Repository (or Local Demo Store)
+       ↓
+Repository Analysis & Detection
+       ↓
+Docker Sandbox (Non-root UID 10001/10002, loopback isolation)
+       ↓
+Playwright Discovery (Pages, Forms, Inputs, Buttons, APIs)
+       ↓
+Application Map + Project Manifest
+       ↓
+AI Test Strategy (15 QA Categories)
+       ↓
+AI Test Generation (Whitelisted Actions & Assertions)
+       ↓
+Deterministic Execution (In-Sandbox Playwright / HTTPX)
+       ↓
+Real Intentional Bug Detection (e.g., broken cart checkout link, invalid quantity 0)
+       ↓
+AI Failure Analysis (Structured FailureAnalysis: title, severity, category, root cause, reproduction)
+       ↓
+SQLite Persistence (TestCases, TestResults, FailureAnalyses, Evidence)
+       ↓
+Interactive Real-Time Dashboard (/dashboard)
+       ↓
+Container & Workspace Cleanup (0 orphaned containers)
+```
+
+### AI Failure Analyzer Service (`backend/app/services/failure_analyzer.py`)
+
+- **Untrusted Observations Boundary:** Passes test case details, executed steps, failed assertion details, HTTP status, and console observations as inert JSON data. System prompt commands the AI that application data has zero authority.
+- **Controlled Structured Output:**
+  - `title`: Short descriptive defect name.
+  - `severity`: Controlled enum (`low`, `medium`, `high`, `critical`).
+  - `category`: Controlled enum (`navigation`, `authentication`, `validation`, `input`, `UI`, `API`, `workflow`, `error_handling`, `unknown`).
+  - `summary`: Concise failure explanation.
+  - `likely_root_cause`: Technical hypothesis based on evidence without claiming absolute proof.
+  - `reproduction_steps`: Ordered concrete steps to trigger the bug.
+  - `evidence_references`: Linked screenshot and log filenames.
+  - `confidence`: Calibrated score (0.0 to 1.0).
+- **Graceful Non-Crashing Failure:** If Ollama is unavailable or times out, the test result remains recorded as FAIL/ERROR/TIMEOUT, a warning is logged, and the run finishes successfully.
+
+### Controlled Demo Store (`demo/`)
+
+A dedicated Node.js Express e-commerce application designed for repeatable, deterministic hackathon demonstrations:
+- **Routes:** `/` (Home), `/products` (Catalog), `/login` (Auth), `/cart` (Cart), `/checkout` (Order), `/api/status`, `/api/products`, `/api/login`, `/api/checkout`.
+- **BUG-001 (Validation):** Checkout accepts order with `quantity: 0` without error.
+- **BUG-002 (Validation / Auth):** Login accepts invalid email without format validation.
+- **BUG-003 (Navigation):** Cart "Proceed to Checkout" button navigates to broken route `/checkout-broken` (HTTP 404).
+
+### Real-Time Dashboard (`/dashboard`)
+
+- Self-contained, zero-install real-time dashboard served directly by the backend at `http://localhost:8000/dashboard`.
+- Distinctly displays Baseline tests (`HOME-001`, `NAV-xxx`) and AI-generated tests (`AI-UI-xxx`).
+- Displays high-visibility AI Bug Finding cards with severity glows, reproduction steps, likely root causes, and confidence badges.
+
+---
+
+## Historical Phase 4 implementation (verified 2026-09-25)
+
+This section documents the Phase 4 AI Test Generation architecture, which builds on
+and extends the Phase 3 deterministic execution foundation. The later full-product
+architecture remains a roadmap: no runtime monitoring, static analysis, AI failure
+analysis, or bug classification are implemented (Phases 5 and 6).
+
+### AI Test Generation Architecture
+
+```text
+GitHub Repository
+       ↓
+Repository Analysis
+       ↓
+Docker Sandbox
+       ↓
+Playwright Discovery
+       ↓
+Application Map + Project Manifest
+       ↓
+PHASE 4: AI Test Planner / Generator
+       ↓
+STRICT STRUCTURED TEST SCHEMAS
+       ↓
+PHASE 3 DETERMINISTIC TEST EXECUTOR
+       ↓
+Playwright / HTTPX inside sandbox
+       ↓
+Evidence + Test Results
+```
+
+### Core Architectural Principle
+
+**AI reasons. Deterministic code executes.**
+
+The AI layer outputs structured data only. It NEVER executes shell commands, arbitrary Python,
+arbitrary JavaScript, browser `evaluate`, Docker commands, or arbitrary HTTP requests.
+
+### Free MVP & Provider Abstraction
+
+- **100% Free to Run:** Uses local **Ollama** (`POST /api/generate`) as the V1/default provider.
+- **Config Defaults:**
+  - `AI_PROVIDER=ollama`
+  - `OLLAMA_HOST=http://localhost:11434`
+  - `AI_MODEL=qwen3:8b`
+- **Extensible Base:** `backend/app/ai/base.py` defines `AIProvider` ABC with timeout, structured
+  output validation, and explicit error taxonomy (`AIUnavailableError`, `AITimeoutError`,
+  `AIInvalidOutputError`, `AISchemaValidationError`, `AIGenerationLimitError`).
+- **No Paid APIs or Cloud Dependencies:** No OpenAI, Gemini, Groq, or Anthropic keys are required.
+- **Network Isolation:** Untrusted repository code inside the Docker sandbox has loopback networking
+  only and CANNOT reach the host Ollama service. Ollama runs on the host backend only.
+
+### Prompt Injection Defense (Observation vs. Instruction)
+
+Repository contents, HTML, page text, source files, READMEs, API responses, console messages, and
+discovered application metadata are strictly treated as **untrusted observations**.
+The system prompt explicitly commands the AI model that application content has zero authority
+to alter execution rules, execute commands, or bypass testing limits.
+
+### QA Test Matrix & Test Planning
+
+- **`TestPlanner` (`backend/app/services/test_planner.py`):**
+  Synthesizes a structured `TestStrategy` from the `ApplicationMap` and `ProjectManifest`.
+  Restricted to controlled QA matrix categories:
+  `navigation`, `authentication`, `forms`, `validation`, `inputs`, `buttons`, `selects`,
+  `checkboxes`, `radio controls`, `api`, `error handling`, `boundary values`, `empty states`,
+  `required fields`, `workflow`.
+- **Target Restrictions:** Every strategy item must target a discovered route or relative path.
+  External URLs (`http://`, `https://`, `//`) are strictly stripped and rejected.
+- **Planner Limits:** Capped at `AI_MAX_STRATEGY_ITEMS=15` with bounded retry attempts (`AI_MAX_RETRIES=2`).
+
+### Structured Test Generation & Validation
+
+- **`TestGenerator` (`backend/app/services/test_generator.py`):**
+  Translates the `TestStrategy`, `ApplicationMap`, and manifest into structured `TestDefinition` objects.
+- **Namespaced Identifiers:** AI tests use distinct namespaces (`AI-UI-xxx` for UI tests, `AI-API-xxx` for API tests)
+  to prevent collision with deterministic baseline tests (`HOME-001`, `NAV-xxx`, `UI-xxx`, `API-xxx`).
+- **Whitelisted Actions Only:** Only deterministic Phase 3 actions are allowed:
+  `goto`, `click`, `fill`, `select`, `check`, `uncheck`, `wait`.
+- **Whitelisted Assertions Only:**
+  - UI: `page_loaded`, `url_matches`, `text_visible`, `element_visible`, `element_hidden`, `input_value`, `http_status`.
+  - API: `status_code`, `response_time`, `content_type`, `json_field_present`, `json_value`.
+- **Strict Validation Pipeline:**
+  `Ollama JSON → Pydantic AITestGenerationOutput → Individual validate_test_definition() → Semantic/Security Checks → Deduplication → Limits`.
+- **Deduplication:** AI tests are deterministically deduplicated against baseline tests and among AI tests
+  by action/step and request signatures.
+- **Limits:** Capped at `AI_MAX_GENERATED_TESTS=20` and overall `MAX_TESTS_PER_RUN=50`.
+
+### Combined Test Suite & Persistence
+
+- **Baseline + AI:** Deterministic baseline tests from `BaselineTestGenerator` remain intact and provide
+  reproducible foundational coverage. AI tests augment this suite.
+- **Persistence:** Test cases are stored in SQLite with a `source` column (`source="baseline"` vs. `source="ai"`).
+- **Distinguishable Failures:** Ollama unavailability or timeouts log an AI warning and allow the pipeline
+  to continue executing baseline tests to completion. AI errors are NEVER classified as application bugs.
+
+---
+
+## Historical Phase 3 implementation (verified 2026-09-25)
+
+This section supersedes the historical Phase 2 and Phase 1 snapshots below. The later
+full-product architecture remains a roadmap: no AI test generation, bug classification,
+reports, or autonomous browser actions are implemented.
+
+### Deterministic Test Engine Pipeline
+
+Phase 3 extends the pipeline between discovery and sandbox cleanup:
+
+```text
+Application Map
+      ↓
+Deterministic Test Definitions (HOME, NAV, UI, API)
+      ↓
+Schema Validation (Pydantic TestDefinition)
+      ↓
+Controlled Test Executor (Limits & Isolation)
+      ↓
+In-Sandbox Playwright / HTTPX (Non-root UID 10002)
+      ↓
+Assertions (page_loaded, url_matches, element_visible, status_code, json_value, etc.)
+      ↓
+PASS / FAIL / ERROR / TIMEOUT / CANCELLED
+      ↓
+Evidence (Screenshots, execution JSON, console, network)
+      ↓
+SQLite (TestCases, TestResults, Evidence linking)
+```
+
+### State Machine Transitions
+
+- **Discovery-Only Runs (`discover: true, testing_enabled: false`):**
+  `READY → DISCOVERING → DISCOVERY_COMPLETE` (terminal).
+- **Testing-Enabled Runs (`discover: true, testing_enabled: true`):**
+  `READY → DISCOVERING → TESTING → COMPLETED` (terminal).
+- **Strict Configuration Enforcement:**
+  Requests with `testing_enabled: true` and `discover: false` are strictly rejected with HTTP 400.
+- State transitions are strictly enforced: `DISCOVERING` transitions directly to `TESTING` if testing is enabled, or to `DISCOVERY_COMPLETE` if disabled. `DISCOVERY_COMPLETE → TESTING` is NOT permitted.
+- Any active state can transition to `FAILED` or `CANCELLED`.
+- Pipeline cleanup occurs after testing finishes and evidence is exported, before the run commits its terminal state (`COMPLETED`, `FAILED`, or `CANCELLED`).
+
+### In-Sandbox Runners & Execution
+
+- `testq_browser.test_runner`: Executes UI test steps (`goto`, `click`, `fill`, `select`, `check`, `uncheck`, `wait`) and UI assertions (`page_loaded`, `url_matches`, `text_visible`, `element_visible`, `element_hidden`, `input_value`, `http_status`) using Playwright inside the sandbox.
+- Selector resolution requires single-element matches (`locator.count() == 1`). If multiple elements match, candidate selectors from the application map are tried in priority order; ambiguous matches fail cleanly without guessing.
+- `testq_browser.api_runner`: Executes API test requests using HTTPX inside the sandbox against loopback `127.0.0.1:<port>`. Evaluates assertions (`status_code`, `response_time`, `content_type`, `json_field_present`, `json_value`).
+- Both runners run as UID 10002 inside the container, write isolated JSON and screenshot artifacts under `/tmp/testq_run_<id>/`, and exit with clean structured JSON results.
+- No arbitrary code evaluation (`eval`, shell execution, arbitrary python/js) is permitted or implemented.
+
+### Host Orchestration & Test Limits
+
+- `BaselineTestGenerator`: Synthesizes deterministic test definitions directly from the Phase 2 `ApplicationMap`:
+  - `HOME-001`: Root page smoke test (page load, URL match, element presence).
+  - `NAV-xxx`: Navigation tests verifying same-origin links load the expected target paths.
+  - `UI-xxx`: Form interaction tests exercising discovered buttons, inputs, and controls.
+  - `API-xxx`: API endpoint checks verifying status code and response structure.
+  No AI or LLM generation is involved; test generation is 100% deterministic and reproducible.
+- `TestExecutor`: Host dispatcher that iterates through test cases, enforces step limits (`MAX_STEPS_PER_TEST=20`), test suite size limits (`MAX_TESTS_PER_RUN=50`), action timeouts (`TEST_ACTION_TIMEOUT=5s`), and per-test execution timeouts (`TEST_TIMEOUT=30s`).
+- `PlaywrightRunner` and `ApiTester`: Host orchestrators invoking in-sandbox execution via `SandboxManager.execute()`, transferring evidence archives, extracting and validating artifacts.
+- Results are recorded as `PASS`, `FAIL`, `ERROR`, `TIMEOUT`, or `CANCELLED`.
+- Cancellation gracefully stops the running test and sets subsequent tests to `CANCELLED`.
+
+### Evidence and SQLite Persistence
+
+- `TestCase`: Persisted schema defining the test suite for a run.
+- `TestResult`: Persisted execution outcomes including status, duration, error details, and step counts.
+- `Evidence`: Test evidence (screenshots, test result JSON, trace artifacts) is linked via `test_result_id` foreign key and stored under `evidence/<run_id>/testing/<test_result_id>/`.
+- REST APIs:
+  - `GET /api/test-runs/{id}/test-cases`: Retrieve generated test definitions.
+  - `GET /api/test-runs/{id}/test-results`: Retrieve test execution results and outcomes.
+  - `GET /api/test-runs/{id}/evidence?test_result_id={test_result_id}`: Filter evidence by test result.
+
+### Limits and Strict Boundaries
+
+- **NO AI Test Generation in Phase 3:** All Phase 3 tests are generated deterministically by `BaselineTestGenerator` from the application map.
+- **NO AI Bug Classification:** Failures remain pure assertion failures or runtime errors; no bug reports, severities, or AI classifications are created.
+- **Strict Sandbox Isolation:** Testing runs in the existing isolated container with loopback networking only. No host ports or external access.
+
+---
+
+## Historical Phase 2 contract (verified 2026-09-25)
+
+This section supersedes the historical Phase 1 snapshot below. The later full-product
+architecture remains a roadmap: no AI test generation, bug classification, reports,
+or autonomous browser actions are implemented.
+
+`Pipeline.run()` retains its existing resource ownership and cleanup. For new API
+runs (`discover: true` by default), successful health checking publishes live READY,
+then DISCOVERING. `DiscoveryService` runs the TestQ-owned Python runner inside the
+same container against `http://127.0.0.1:<internal-port>`. DISCOVERY_COMPLETE is only
+committed after evidence export, log retention, and cleanup. `discover: false` retains
+Phase 1's final READY behavior. Discovery progress does not mark testing/report stages
+complete. Cancellation and whole-run deadlines still terminate the container and
+prevent later success transitions.
+
+### Controlled browser and bounded discovery
+
+Both images contain pinned Python Playwright 1.63.0, Chromium and its OS dependencies,
+independent of the target repository. The target runs as UID 10001; the browser runner
+uses UID 10002, isolated Python imports, root-owned `/opt/testq`, and a private
+`/discovery/<session_id>` directory. No application port is published. Runtime has
+loopback only. Browser requests are further restricted to the exact target origin;
+external HTTP requests/navigation and WebSockets are blocked, service workers disabled.
+
+Chromium's own sandbox stays enabled. The Playwright seccomp profile permits namespace
+creation, adds clone3 ENOSYS fallback, and allows the chroot syscall needed inside
+Chromium's user namespace. No container capability is added: ALL remain dropped,
+along with no-new-privileges, no host mounts/socket, no privileged mode, two CPUs,
+2 GiB memory and 256 PIDs. Browser-enabled containers use private 256 MiB shared memory.
+The chroot requirement follows [Chromium's namespace sandbox implementation](https://chromium.googlesource.com/chromium/src/+/lkgr/sandbox/linux/services/credentials.cc).
+
+`backend/testq_browser` separates schemas, URL/frontier policies, browser lifecycle,
+DOM inspection, observers, artifacts, and orchestration. Breadth-first navigation starts
+at `/`, strips query/fragment variants, normalizes paths, rejects credentialled/external
+URLs, and caps pages/depth. Defaults: 12 pages, depth 3, navigation 8s, action 3s,
+session 60s. The host execution supervisor allows 15s for runner finalization, bounded
+by the existing whole-run deadline. Failed routes keep their real HTTP status;
+404 is `http_error`, not successful navigation. Individual navigation failures normally
+allow remaining pages to be inspected. Browser launch failure fails discovery.
+
+DOM inspection stores links, forms, buttons, inputs, selects/options, checkbox/radio
+state, labels and selector candidates. Candidate preference is test ID, role/name,
+ID, name, stable attribute, CSS fallback. Candidates are observed, not guaranteed
+unique or tested for future interactions. No form submission, filling or clicking occurs.
+Network records contain method, sanitized URL/path, resource type, status and duration;
+console, browser errors and failed requests remain unclassified observations.
+
+### Evidence and SQLite persistence
+
+`DiscoverySession` stores a versioned typed application map as reassigned JSON, including
+pages/elements/endpoints/observations. `Evidence` stores run/session/page context, kind,
+relative path, size, SHA-256 and media type. Existing SQLite records are preserved by
+idempotent additive columns and create-if-missing tables; no database recreation or
+PostgreSQL dependency is introduced.
+
+Each completed page checkpoints its map. Before container removal, the host reads
+bounded regular files via Docker archive APIs (without extracting archive paths),
+validates context/size/hash/type, atomically writes exports, verifies them again and
+persists metadata. Artifacts live under `evidence/<run_id>/discovery/<session_id>/`.
+Application stdout/stderr are copied to SQLite and linked in a bounded application-log
+artifact. Cancellation/hard timeout exports the last completed checkpoint from the
+stopped container. An in-flight page may be incomplete.
+
+Screenshots are fixed 1280x720 with form controls/iframes/private regions masked.
+Per-page sanitized Playwright traces retain action timing and navigation outcomes;
+DOM snapshots, source files, response bodies, network headers and raw console trace
+events are omitted. Separate console/network/error JSON retains bounded observations.
+Artifacts default to 8 MiB each and 64 MiB per session; trace/screenshot counts are
+bounded by max pages. Exceeding a budget reports failure and retains available data.
+Read-only discovery/evidence endpoints verify downloaded artifact integrity and context.
+
+### Limits and threat model
+
+- This is anonymous, path-based link discovery. Hash routers, query-dependent pages,
+  authenticated flows, click-only navigation, exhaustive SPA exploration and delayed
+  background activity beyond the short observation window are not covered.
+- External CDN assets/APIs are blocked; pages can render differently from production.
+  Setup still requires network access for dependency installation. No production API
+  is intentionally targeted by discovery.
+- Headers, cookies, request/response bodies and input values are not recorded. Known
+  secret patterns and URL queries are redacted. Arbitrary secrets rendered as text or
+  custom console messages cannot be reliably recognized; screenshots can contain other
+  visible page content. Do not inject production credentials or datasets into test apps.
+- Traces intentionally omit DOM/network payloads; they are not full-fidelity replays.
+  The application map is observational evidence, not proof that the application is correct.
+- Container isolation shares the host kernel. Browser namespace syscalls expand the
+  container syscall surface; keep Docker/Chromium patched. Untrusted application logs
+  are not tamper-proof. Same-container separate users protect runner files, not a VM boundary.
+- Backend/daemon crashes can lose artifacts not yet exported. Startup recovery cleans
+  orphan resources; it does not resume browser discovery or recover unfinished traces.
+  A single backend process remains required.
+
+## Historical Phase 1 contract (verified 2026-09-24)
+
+The sections below describe the full target product. Only the execution foundation
+and the existing Ollama adapter are implemented; browser discovery, AI testing,
+reports, and dashboard remain future work. This section takes precedence over
+illustrative interfaces/state examples later in the target architecture.
+
+### Run ownership and execution
+
+`api/test_runs.py` schedules `worker/pipeline.py` with a per-run `RunControl`.
+The current supported deployment is one API worker process. The control carries a
+thread-safe cancellation event, monotonic whole-run deadline, and completion signal.
+Synchronous operations run in joined threads; cancelling the asyncio task signals
+execution and waits for the blocking operation to exit instead of abandoning it.
+
+The manager records the generated container name before its create request, and
+handles partial create/copy failure. The pipeline's nested `finally` blocks stop
+execution, export logs, remove every owned container, and remove its reserved clone
+workspace even when an earlier operation fails. Removal failures are retried and
+reported, not suppressed. Containers carry managed/run labels for recovery.
+
+Repository install/build/start commands run only inside Docker. Commands use detached
+Docker exec with stdout/stderr files and execution polling. A command timeout or
+cancellation kills the whole container and its descendants. Files remain readable
+from the stopped container until export/removal. `DOCKER_TIMEOUT` bounds commands;
+`RUN_TIMEOUT` bounds the entire run including cloning. Docker requests themselves
+have a transport timeout. Cleanup may extend past the execution deadline.
+Images must be provisioned before a run; obsolete images are rejected by label.
+
+### State and cancellation
+
+Phase 1 follows `QUEUED → CLONING → ANALYZING → BUILDING → STARTING → READY`.
+Each active state can fail or be cancelled. READY is published after successful
+health checking and cleanup, with `finished_at` populated and live sandbox metadata
+cleared. It does not promise a still-running preview. Invalid transitions raise;
+updates use a compare-and-set condition on the old status and cancellation flag.
+Progress JSON is copied/reassigned and committed rather than mutated in place.
+
+Cancellation persists `cancellation_requested` before signalling the worker. The
+worker stops active execution, exports logs, cleans up, and finally commits CANCELLED.
+The API returns 202 if cleanup exceeds its five-second response wait; clients poll
+until terminal. Completed Phase 1 runs reject cancellation. Startup recovers
+unfinished runs and labelled orphan containers. Recovery is single-instance only;
+a distributed/durable job queue is not part of Phase 1.
+
+### Sandbox security and networking
+
+Both images run repository commands as UID/GID 10001, with all capabilities dropped,
+no-new-privileges, no privileged mode, no host mounts/socket, CPU/memory/PID limits,
+and an additional container lifetime watchdog. Sources are copied as the application
+user, with escaping symlinks and special files rejected; copy size is capped at 256 MiB.
+
+Install/build have bridge networking for dependency downloads and build-time assets.
+Before startup, every Docker network is disconnected. Runtime has loopback only;
+health checking uses an in-container curl request to the selected port, without
+following redirects. The pipeline publishes no host ports. Optional low-level port
+mappings are loopback-bound. A future same-container browser can use this same local
+application URL; no browser tooling has been installed.
+
+Setup network access is not registry-allowlisted, so dependency scripts can make
+outbound requests then. Runtime applications requiring external APIs or databases
+are unsupported by this default. Docker is not a VM security boundary. Host/daemon
+outage can prevent immediate removal; failures remain visible, and the watchdog
+bounds container execution but cannot itself remove containers. Unlabelled legacy
+containers are not automatically adopted. Logs not yet exported may be lost on an
+abrupt host/backend crash.
+
+### Configuration, storage, logs and detection
+
+The root `.env`, database, workspace and evidence paths are independent of cwd.
+SQLite uses `sqlite+aiosqlite`; legacy synchronous URLs are normalized. Existing
+Phase 1 databases receive an idempotent additive cancellation-column migration.
+Databases are not automatically relocated. Persisted tables remain projects,
+test_runs and logs; the broader data model below is future scope.
+
+Command/application stdout and stderr are retained separately, bounded to 10 MiB per
+file, then copied into SQLite logs in 64 KiB records before container removal. They
+are retrievable through the existing logs endpoint. They are untrusted observations,
+not tamper-proof evidence. No screenshots/traces/evidence APIs or live streaming exist.
+Build dependencies are installed with development settings; application startup sets
+NODE_ENV=production. Health accepts 2xx/3xx/401/403, but rejects 404 and 5xx.
+
+An omitted branch resolves to remote HEAD. Detection supports existing root apps and
+one unambiguous standalone nested app within two directory levels. A root testq.json
+can select project_dir and port. Common literal custom-port patterns are recognized;
+Vite gets a strict selected port. Shared workspace/multi-service orchestration and
+arbitrary executable configuration discovery remain unsupported.
+
+### Verification and Phase 2 boundary
+
+87 tests passed with real Docker enabled on 2026-09-24 (10 Docker cases), plus the
+original local Express integration script. The suite covers success, failures,
+cancellation, enforced timeouts, cleanup, state/progress, logs, configuration,
+network restrictions, non-root execution and SQLite migration. Three existing
+schema collection warnings remain. Real pipeline tests clone local Git fixtures,
+including a non-main default branch; no new public-GitHub integration result is claimed.
+
+Phase 2 should extend the live portion of Pipeline.run after health succeeds and
+before cleanup. It must not attach to a finished READY run. Phase 2 is not started.
+
+---
 ## 1. System Overview
 
 TestQ is a modular platform that accepts a GitHub repository URL, securely builds and runs the application inside an isolated Docker sandbox, discovers its functionality through real browser and API interaction, generates and executes adversarial tests, collects runtime evidence, uses AI to analyze failures, and produces actionable QA reports.
@@ -623,7 +1062,7 @@ All secrets and configuration via environment variables:
 
 ```bash
 # Database
-DATABASE_URL=sqlite:///./testq.db
+DATABASE_URL=sqlite+aiosqlite:///./testq.db
 
 # AI Provider (V1: Ollama is default, no paid API needed)
 AI_PROVIDER=ollama           # ollama | openai | gemini | groq
@@ -707,3 +1146,16 @@ GET /api/test-runs/run_abc123
 ---
 
 *This document defines the target architecture. Implementation proceeds phase-by-phase as tracked in `IMPLEMENTATION_PLAN.md`.*
+
+## Phase 2 verification record — 2026-09-25
+
+The complete suite passed 125 tests with both Docker and public-app flags enabled:
+87 preserved Phase 1 tests and 38 Phase 2 tests (28 non-Docker, 10 real Docker).
+No tests were skipped; three pre-existing Pydantic schema collection warnings remain.
+Both images built and launched sandboxed Chromium as UID 10002. Fixture discovery,
+HTTP 404 recording, navigation/session limits, failure cleanup and cancellation
+through the API passed. The public Heroku Express sample also completed discovery.
+Screenshots and JSON were inspected after removal, and the sanitized trace ZIP was
+inspected for retained action events and empty network payload. The trace viewer UI
+was not separately validated. No TestQ-managed containers remained. Detailed evidence
+paths and commit/run IDs are in IMPLEMENTATION_PLAN.md. No later phase was started.

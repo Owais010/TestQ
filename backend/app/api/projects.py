@@ -38,7 +38,7 @@ async def create_project(
     # Create new project
     project = Project(
         repository_url=validated_url,
-        default_branch=data.branch,
+        default_branch=data.branch or "",
     )
     db.add(project)
     await db.commit()

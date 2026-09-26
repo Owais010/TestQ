@@ -1,182 +1,121 @@
-"""
-GitHub Service.
-
-Handles repository cloning, branch resolution, and URL validation.
-Repository code is NEVER executed during cloning — only git operations.
-"""
-
-import logging
+"""Validated GitHub intake and cancellable git subprocesses (no repo execution)."""
 import os
 import re
 import shutil
+import signal
+import subprocess
+import time
+import uuid
 from pathlib import Path
 
-from git import Repo, GitCommandError, InvalidGitRepositoryError
+from app.config import settings, APP_ROOT
+from app.worker.control import RunControl
 
-from app.config import settings
-
-logger = logging.getLogger("testq.github")
-
-# Pattern to validate GitHub repository URLs
-GITHUB_URL_PATTERN = re.compile(
-    r"^https?://github\.com/[\w\-\.]+/[\w\-\.]+/?$"
-)
+GITHUB_URL_PATTERN = re.compile(r"^https?://github\.com/[\w\-.]+/[\w\-.]+/?$")
 
 
 class GitHubServiceError(Exception):
-    """Base error for GitHub operations."""
-
     pass
 
 
 class InvalidRepositoryURL(GitHubServiceError):
-    """The provided URL is not a valid GitHub repository URL."""
-
     pass
 
 
 class CloneError(GitHubServiceError):
-    """Failed to clone the repository."""
-
     pass
 
 
 class BranchError(GitHubServiceError):
-    """The specified branch does not exist."""
-
     pass
 
 
 class GitHubService:
-    """Handles GitHub repository operations."""
+    def __init__(self, workspaces_dir=None, control: RunControl | None = None):
+        self.workspaces_dir = Path(workspaces_dir or settings.workspaces_path).resolve()
+        self.control = control
 
-    def __init__(self, workspaces_dir: Path | None = None):
-        self.workspaces_dir = workspaces_dir or settings.workspaces_path
-
-    def validate_url(self, url: str) -> str:
-        """
-        Validate and normalize a GitHub repository URL.
-
-        Returns the cleaned URL.
-        Raises InvalidRepositoryURL if invalid.
-        """
+    def validate_url(self, url):
         url = url.strip().rstrip("/")
-
-        # Remove .git suffix if present
         if url.endswith(".git"):
             url = url[:-4]
-
-        if not GITHUB_URL_PATTERN.match(url):
-            raise InvalidRepositoryURL(
-                f"Invalid GitHub repository URL: {url}. "
-                "Expected format: https://github.com/owner/repo"
-            )
-
+        if not GITHUB_URL_PATTERN.fullmatch(url):
+            raise InvalidRepositoryURL(f"Invalid GitHub repository URL: {url}")
         return url
 
-    def clone_repository(
-        self,
-        repository_url: str,
-        branch: str = "main",
-        target_dir: Path | None = None,
-    ) -> dict:
-        """
-        Clone a public GitHub repository.
-
-        Args:
-            repository_url: The GitHub repository URL.
-            branch: Branch to checkout (default: main).
-            target_dir: Where to clone. If None, creates a temp dir under workspaces.
-
-        Returns:
-            dict with repo_path, branch, commit_sha.
-
-        Raises:
-            InvalidRepositoryURL: If URL is invalid.
-            CloneError: If cloning fails.
-            BranchError: If branch doesn't exist.
-        """
-        url = self.validate_url(repository_url)
-
-        if target_dir is None:
-            # Extract repo name for directory naming
-            parts = url.rstrip("/").split("/")
-            repo_name = parts[-1] if parts else "repo"
-            import uuid
-
-            target_dir = self.workspaces_dir / f"{repo_name}_{uuid.uuid4().hex[:8]}"
-
-        target_dir = Path(target_dir)
-
-        # Clean up if directory already exists
-        if target_dir.exists():
-            shutil.rmtree(target_dir, ignore_errors=True)
-
-        target_dir.mkdir(parents=True, exist_ok=True)
-
-        logger.info(f"Cloning {url} (branch: {branch}) to {target_dir}")
-
-        try:
-            # Clone with depth=1 for speed (shallow clone)
-            clone_url = url + ".git"
-            repo = Repo.clone_from(
-                clone_url,
-                str(target_dir),
-                branch=branch,
-                depth=1,
-                no_checkout=False,
-            )
-        except GitCommandError as e:
-            error_msg = str(e)
-
-            # Check for branch-not-found errors
-            if "not found" in error_msg.lower() or "could not find" in error_msg.lower():
-                # Try cloning default branch first, then checkout
-                try:
-                    repo = Repo.clone_from(
-                        clone_url, str(target_dir), depth=1
-                    )
-                    # Try to checkout the requested branch
-                    try:
-                        repo.git.checkout(branch)
-                    except GitCommandError:
-                        shutil.rmtree(target_dir, ignore_errors=True)
-                        raise BranchError(
-                            f"Branch '{branch}' not found in {url}"
-                        )
-                except GitCommandError:
-                    shutil.rmtree(target_dir, ignore_errors=True)
-                    raise CloneError(f"Failed to clone repository: {error_msg}")
-            elif "repository not found" in error_msg.lower():
-                shutil.rmtree(target_dir, ignore_errors=True)
-                raise CloneError(
-                    f"Repository not found: {url}. "
-                    "Make sure it exists and is public."
-                )
-            else:
-                shutil.rmtree(target_dir, ignore_errors=True)
-                raise CloneError(f"Failed to clone repository: {error_msg}")
-
-        # Get commit SHA
-        try:
-            commit_sha = repo.head.commit.hexsha
-        except Exception:
-            commit_sha = None
-
-        logger.info(
-            f"Cloned successfully: {target_dir} "
-            f"(commit: {commit_sha[:8] if commit_sha else 'unknown'})"
+    def _git(self, args):
+        control = self.control or RunControl(settings.docker_timeout)
+        control.check()
+        options = {"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {"start_new_session": True}
+        env = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "GIT_LFS_SKIP_SMUDGE": "1"}
+        process = subprocess.Popen(
+            ["git", "-c", "core.hooksPath=/dev/null", *args],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, **options,
         )
+        try:
+            while True:
+                control.check()
+                try:
+                    out, err = process.communicate(timeout=0.1)
+                    break
+                except subprocess.TimeoutExpired:
+                    continue
+        except BaseException:
+            if os.name == "nt":
+                subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                               capture_output=True, timeout=10, creationflags=subprocess.CREATE_NO_WINDOW)
+            else:
+                os.killpg(process.pid, signal.SIGKILL)
+            process.communicate(timeout=10)
+            raise
+        if process.returncode:
+            raise CloneError(err.decode("utf-8", errors="replace")[-4000:])
+        return out.decode("utf-8", errors="replace").strip()
 
-        return {
-            "repo_path": str(target_dir),
-            "branch": branch,
-            "commit_sha": commit_sha,
-        }
+    def clone_repository(self, repository_url, branch=None, target_dir=None):
+        url = self.validate_url(repository_url)
+        if branch and (branch.startswith("-") or any(c.isspace() for c in branch)):
+            raise BranchError("Invalid branch name")
+        target = Path(target_dir or self.workspaces_dir / uuid.uuid4().hex).resolve()
+        if not target.is_relative_to(self.workspaces_dir) or target == self.workspaces_dir:
+            raise CloneError("Clone target must be inside the run workspace root")
+        if target.exists():
+            raise CloneError("Clone target already exists")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        demo_dir = (APP_ROOT / "demo").resolve()
+        from app.services.demo_showcase import is_demo_repo
+        if is_demo_repo(url) and demo_dir.exists():
+            args = ["clone"]
+            if branch:
+                try:
+                    branches = self._git(["-C", str(demo_dir), "branch", "--list", branch]).strip()
+                    if branches:
+                        args += ["--branch", branch]
+                except Exception:
+                    pass
+            args += ["--", str(demo_dir), str(target)]
+        else:
+            args = ["clone", "--depth=1"]
+            if branch:
+                args += ["--branch", branch]
+            args += ["--", url + ".git", str(target)]
+        try:
+            self._git(args)
+            return {
+                "repo_path": str(target),
+                "branch": self._git(["-C", str(target), "rev-parse", "--abbrev-ref", "HEAD"]),
+                "commit_sha": self._git(["-C", str(target), "rev-parse", "HEAD"]),
+            }
+        except BaseException:
+            self.cleanup_workspace(target)
+            raise
 
-    def cleanup_workspace(self, repo_path: str | Path) -> None:
-        """Remove a cloned repository workspace."""
-        path = Path(repo_path)
+    def cleanup_workspace(self, repo_path):
+        path = Path(repo_path).resolve()
+        if path == self.workspaces_dir or not path.is_relative_to(self.workspaces_dir):
+            raise GitHubServiceError("Refusing cleanup outside workspace root")
         if path.exists():
-            shutil.rmtree(path, ignore_errors=True)
-            logger.info(f"Cleaned up workspace: {path}")
+            def writable_retry(function, item, error):
+                os.chmod(item, 0o700)
+                function(item)
+            shutil.rmtree(path, onerror=writable_retry)

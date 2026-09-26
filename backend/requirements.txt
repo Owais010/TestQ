@@ -13,3 +13,6 @@ python-dotenv>=1.0.0
 pytest>=8.0.0
 pytest-asyncio>=0.24.0
 pytest-httpx>=0.30.0
+
+# TestQ-controlled browser tooling (never a target-repository dependency)
+playwright==1.63.0

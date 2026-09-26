@@ -101,7 +101,7 @@ class TestProjectCreate:
 
     def test_default_branch(self):
         req = ProjectCreate(repository_url="https://github.com/user/project")
-        assert req.branch == "main"
+        assert req.branch is None  # remote default branch, resolved during clone
 
     def test_missing_url(self):
         with pytest.raises(ValidationError):

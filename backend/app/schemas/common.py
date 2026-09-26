@@ -15,7 +15,8 @@ class ProjectConfig(BaseModel):
     install_command: str = Field(..., description="Command to install dependencies")
     build_command: str | None = Field(None, description="Command to build the project")
     start_command: str = Field(..., description="Command to start the application")
-    expected_port: int = Field(3000, description="Expected port the app listens on")
+    expected_port: int = Field(3000, ge=1, le=65535, description="Expected port the app listens on")
+    project_dir: str = "."
     has_dockerfile: bool = Field(False, description="Whether the project has its own Dockerfile")
     detected_files: list[str] = Field(
         default_factory=list, description="Key files that informed detection"
@@ -39,9 +40,10 @@ class SandboxConfig(BaseModel):
     """Configuration for creating a Docker sandbox."""
 
     image: str = Field(..., description="Docker image to use")
+    browser_enabled: bool = False
     cpu_limit: float = Field(2.0, description="CPU core limit")
     memory_limit: str = Field("2g", description="Memory limit")
-    timeout: int = Field(600, description="Max execution time in seconds")
+    timeout: float = Field(600, gt=0, description="Container lifetime in seconds")
     working_dir: str = Field("/workspace", description="Working directory inside container")
     environment: dict[str, str] = Field(default_factory=dict)
     port_mappings: dict[int, int] = Field(
@@ -58,3 +60,4 @@ class HealthCheckResult(BaseModel):
     response_time_ms: float | None = None
     error: str | None = None
     attempts: int = 0
+    details: str | None = None

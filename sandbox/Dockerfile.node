@@ -1,35 +1,21 @@
-# TestQ Node.js Sandbox
-# Supports: Next.js, React/Vite, Node.js applications
-# This image is used for building and running untrusted JS/TS projects.
-
+﻿# Build from repository root: docker build -f sandbox/Dockerfile.node ... .
 FROM node:20-slim
-
-# Install useful tools and all package managers
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    git \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install pnpm globally (yarn already included in node:20-slim)
-RUN npm install -g pnpm
-
-# Create workspace directory
-RUN mkdir -p /workspace
+LABEL testq.hardening="1" testq.browser="1.63.0"
+RUN apt-get update && apt-get install -y --no-install-recommends curl git python3 python3-venv \
+    && rm -rf /var/lib/apt/lists/* && npm install -g pnpm
+COPY sandbox/browser-requirements.txt /opt/testq/browser-requirements.txt
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/testq/browsers
+RUN python3 -m venv /opt/testq/venv \
+    && /opt/testq/venv/bin/pip install --no-cache-dir -r /opt/testq/browser-requirements.txt \
+    && /opt/testq/venv/bin/python -m playwright install --with-deps chromium \
+    && /opt/testq/venv/bin/python -c "import site,pathlib; pathlib.Path(site.getsitepackages()[0], 'testq.pth').write_text('/opt/testq/lib')"
+RUN groupadd -g 10001 testq && useradd -m -u 10001 -g testq testq \
+    && groupadd -g 10002 browser && useradd -m -u 10002 -g browser browser \
+    && mkdir -p /workspace /discovery && chown testq:testq /workspace \
+    && chown browser:browser /discovery && chmod 700 /discovery
+COPY backend/testq_browser /opt/testq/lib/testq_browser
+RUN chmod -R a+rX,go-w /opt/testq
 WORKDIR /workspace
-
-# Create a non-root user for running applications
-RUN groupadd -r testq && useradd -r -g testq -d /workspace testq
-RUN chown -R testq:testq /workspace
-
-# Don't run as root by default
-# NOTE: Some npm installs need root, so we start as root
-# and the pipeline handles permissions
-USER root
-
-# Set environment defaults
-ENV NODE_ENV=production
-ENV PORT=3000
-ENV NEXT_TELEMETRY_DISABLED=1
-
-# Keep container alive — commands are executed via docker exec
-CMD ["sleep", "infinity"]
+ENV HOME=/home/testq NODE_ENV=development NEXT_TELEMETRY_DISABLED=1
+USER 10001:10001
+CMD ["sleep", "600"]

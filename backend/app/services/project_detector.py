@@ -16,6 +16,8 @@ Unsupported technologies are detected and rejected honestly.
 
 import json
 import logging
+import re
+import os
 from pathlib import Path
 
 from app.schemas.common import ProjectConfig
@@ -305,7 +307,7 @@ def _check_unsupported(repo_path: Path) -> str | None:
     return None
 
 
-def detect_project(repo_path: str | Path) -> ProjectConfig:
+def _detect_root(repo_path: str | Path) -> ProjectConfig:
     """
     Detect the project type from repository files.
 
@@ -375,3 +377,84 @@ def detect_project(repo_path: str | Path) -> ProjectConfig:
         "TestQ V1 supports: Next.js, React/Vite, Node.js, Python/FastAPI. "
         "Ensure the repository has a package.json or requirements.txt."
     )
+
+
+def _apply_port(config: ProjectConfig, path: Path, override=None) -> ProjectConfig:
+    pkg = _read_json(path / "package.json")
+    scripts = pkg.get("scripts", {})
+    command = scripts.get("preview" if config.framework == "vite-react" and "preview" in scripts else "start", "")
+    match = re.search(r"(?:\bPORT\s*=\s*|--port[=\s]+|-p\s+)(\d+)\b", command)
+    port = int(match.group(1)) if match else None
+    if port is None and config.framework == "nodejs":
+        for name in ("server.js", "index.js", "app.js", "server.ts", "src/index.ts"):
+            file = path / name
+            if file.is_file() and file.stat().st_size < 1024 * 1024:
+                source = file.read_text(encoding="utf-8", errors="replace")
+                match = re.search(r"(?:\.listen\(\s*|\bPORT\s*\|\|\s*|\bport\s*=\s*)(\d+)\b", source)
+                if match:
+                    port = int(match.group(1))
+                    break
+    port = override if override is not None else port
+    if port is not None:
+        if isinstance(port, bool) or not isinstance(port, int) or not 1 <= port <= 65535:
+            raise DetectionError("Invalid application port")
+        config.expected_port = port
+    if config.framework == "vite-react":
+        # Force the selected port; Vite must not silently choose a different one.
+        config.start_command += f" --port {config.expected_port} --strictPort"
+    if config.framework == "fastapi":
+        config.start_command = re.sub(r"--port \d+", f"--port {config.expected_port}", config.start_command)
+    return config
+
+
+def detect_project(repo_path: str | Path) -> ProjectConfig:
+    """Root first, then one unambiguous app within two directory levels.
+
+    testq.json can select {"project_dir": "apps/web", "port": 4567}.
+    Shared-workspace dependency orchestration is deliberately out of scope.
+    """
+    root = Path(repo_path).resolve()
+    if not root.is_dir():
+        raise DetectionError(f"Repository path does not exist: {root}")
+    metadata = _read_json(root / "testq.json")
+    selected = metadata.get("project_dir")
+    if selected is not None:
+        if not isinstance(selected, str):
+            raise DetectionError("project_dir must be a relative directory")
+        target = (root / selected).resolve()
+        if not target.is_relative_to(root):
+            raise DetectionError("project_dir escapes repository")
+        config = _apply_port(_detect_root(target), target, metadata.get("port"))
+        config.project_dir = target.relative_to(root).as_posix()
+        return config
+    try:
+        return _apply_port(_detect_root(root), root, metadata.get("port"))
+    except UnsupportedProjectError:
+        raise
+    except DetectionError:
+        pass
+    candidates = []
+    visited = 0
+    for directory, dirs, files in os.walk(root, followlinks=False):
+        path = Path(directory)
+        depth = len(path.relative_to(root).parts)
+        dirs[:] = sorted(d for d in dirs if d not in {
+            ".git", "node_modules", ".venv", "venv", "__pycache__"
+        } and not d.startswith(".") and not (path / d).is_symlink()) if depth < 2 else []
+        visited += 1
+        if visited > 100:
+            raise DetectionError("Too many application directories; select project_dir in testq.json")
+        if depth == 0 or not {"package.json", "requirements.txt", "pyproject.toml"}.intersection(files):
+            continue
+        try:
+            config = _apply_port(_detect_root(path), path, metadata.get("port"))
+            config.project_dir = path.relative_to(root).as_posix()
+            candidates.append(config)
+        except (DetectionError, UnsupportedProjectError):
+            continue
+    if len(candidates) == 1:
+        return candidates[0]
+    if candidates:
+        raise DetectionError("Ambiguous nested apps; select project_dir in testq.json: " +
+                             ", ".join(c.project_dir for c in candidates))
+    raise DetectionError("No supported application detected")

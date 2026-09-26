@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TestQ — Independent AI QA Agent Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #090d16;
+      --card-bg: rgba(19, 27, 46, 0.75);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent-cyan: #38bdf8;
+      --accent-purple: #a855f7;
+      --accent-green: #10b981;
+      --accent-red: #ef4444;
+      --accent-amber: #f59e0b;
+      --glass: backdrop-filter: blur(16px);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: var(--bg);
+      background-image: 
+        radial-gradient(circle at 15% 20%, rgba(56, 189, 248, 0.07) 0%, transparent 40%),
+        radial-gradient(circle at 85% 60%, rgba(168, 85, 247, 0.07) 0%, transparent 40%);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--card-border);
+      padding: 16px 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+    .logo-area { display: flex; align-items: center; gap: 14px; }
+    .logo-icon {
+      width: 40px; height: 40px; border-radius: 10px;
+      background: linear-gradient(135deg, #38bdf8, #8b5cf6);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-family: 'Outfit', sans-serif; font-size: 20px; color: white;
+      box-shadow: 0 4px 14px rgba(56, 189, 248, 0.3);
+    }
+    .logo-text h1 { font-family: 'Outfit', sans-serif; font-size: 20px; font-weight: 700; letter-spacing: -0.5px; }
+    .logo-text p { font-size: 12px; color: var(--text-muted); }
+    .header-actions { display: flex; gap: 12px; align-items: center; }
+    .btn {
+      padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600;
+      cursor: pointer; transition: all 0.2s; border: none; outline: none;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #0284c7, #6366f1);
+      color: white; box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+    }
+    .btn-primary:hover { opacity: 0.92; transform: translateY(-1px); }
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.05); color: var(--text-main);
+      border: 1px solid var(--card-border);
+    }
+    .btn-secondary:hover { background: rgba(255, 255, 255, 0.1); }
+    main { padding: 32px; max-width: 1320px; margin: 0 auto; width: 100%; flex: 1; }
+    
+    .run-header-card {
+      background: var(--card-bg);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .run-title-group h2 { font-family: 'Outfit', sans-serif; font-size: 22px; font-weight: 700; }
+    .run-meta { display: flex; gap: 16px; align-items: center; margin-top: 8px; font-size: 13px; color: var(--text-muted); }
+    .badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600;
+    }
+    .badge-status-completed { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .badge-status-running { background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); animation: pulse 2s infinite; }
+    .badge-status-failed { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+    .badge-ai { background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3); }
+    .badge-baseline { background: rgba(100, 116, 139, 0.15); color: #94a3b8; border: 1px solid rgba(100, 116, 139, 0.3); }
+
+    .grid-metrics {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .metric-card {
+      background: var(--card-bg);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 18px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .metric-label { font-size: 12px; font-weight: 500; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    .metric-value { font-family: 'Outfit', sans-serif; font-size: 28px; font-weight: 700; }
+    .metric-sub { font-size: 12px; color: var(--text-muted); }
+
+    .tabs { display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid var(--card-border); padding-bottom: 8px; }
+    .tab-btn {
+      padding: 8px 16px; border-radius: 8px; background: transparent; border: none;
+      color: var(--text-muted); font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s;
+    }
+    .tab-btn.active { background: rgba(255, 255, 255, 0.08); color: var(--text-main); }
+    .tab-btn:hover { color: var(--text-main); }
+
+    /* Findings / Bug Report Cards */
+    .finding-card {
+      background: rgba(239, 68, 68, 0.05);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 20px rgba(239, 68, 68, 0.08);
+      transition: transform 0.2s;
+    }
+    .finding-card:hover { transform: translateY(-2px); }
+    .finding-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 14px; }
+    .finding-title-group h3 { font-family: 'Outfit', sans-serif; font-size: 18px; font-weight: 700; color: #fca5a5; }
+    .finding-badges { display: flex; gap: 8px; flex-wrap: wrap; }
+    .badge-sev-critical, .badge-sev-high { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); }
+    .badge-sev-medium { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); }
+    .badge-sev-low { background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4); }
+
+    .finding-body { display: grid; grid-template-columns: 1fr; gap: 14px; font-size: 14px; line-height: 1.6; }
+    .callout-box {
+      background: rgba(0, 0, 0, 0.3);
+      border-left: 3px solid var(--accent-red);
+      padding: 12px 16px;
+      border-radius: 0 8px 8px 0;
+    }
+    .callout-title { font-size: 12px; font-weight: 700; text-transform: uppercase; color: #fca5a5; margin-bottom: 4px; }
+    .steps-list { padding-left: 20px; margin-top: 4px; }
+    .steps-list li { margin-bottom: 4px; }
+
+    /* Tables */
+    .data-table {
+      width: 100%; border-collapse: collapse; font-size: 13px; text-align: left;
+    }
+    .data-table th {
+      padding: 12px 16px; background: rgba(255, 255, 255, 0.03); color: var(--text-muted);
+      border-bottom: 1px solid var(--card-border); font-weight: 600;
+    }
+    .data-table td {
+      padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    }
+    .data-table tr:hover td { background: rgba(255, 255, 255, 0.02); }
+
+    /* New Run Modal */
+    .modal-backdrop {
+      display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(8px); z-index: 100; align-items: center; justify-content: center;
+    }
+    .modal {
+      background: #111827; border: 1px solid var(--card-border); border-radius: 16px;
+      width: 90%; max-width: 520px; padding: 28px; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+    }
+    .modal h3 { font-family: 'Outfit', sans-serif; font-size: 20px; font-weight: 700; margin-bottom: 16px; }
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; font-size: 13px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; }
+    .form-input {
+      width: 100%; padding: 10px 14px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.05); color: white; font-size: 14px; outline: none;
+    }
+    .form-input:focus { border-color: var(--accent-cyan); }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }
+
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo-area">
+      <div class="logo-icon">TQ</div>
+      <div class="logo-text">
+        <h1>TestQ</h1>
+        <p>Independent AI QA Agent • Hackathon Demo</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button id="btn-select-run" class="btn btn-secondary" onclick="loadRunList()">Switch Run</button>
+      <button id="btn-new-run" class="btn btn-primary" onclick="openNewRunModal()">+ New Test Run</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- Run Header Info -->
+    <div class="run-header-card">
+      <div class="run-title-group">
+        <h2 id="run-repo-title">Loading test run...</h2>
+        <div class="run-meta">
+          <span id="run-status-badge" class="badge badge-status-running">IN_PROGRESS</span>
+          <span id="run-branch">Branch: main</span>
+          <span id="run-duration">Duration: --</span>
+          <span id="run-framework">Framework: Detecting...</span>
+        </div>
+      </div>
+      <div style="text-align: right;">
+        <span style="font-size: 12px; color: var(--text-muted);">AI Provider:</span>
+        <span class="badge badge-ai" id="ai-provider-badge">Ollama (qwen3:8b)</span>
+      </div>
+    </div>
+
+    <!-- Quick Stats Grid -->
+    <div class="grid-metrics">
+      <div class="metric-card">
+        <span class="metric-label">Discovered Pages</span>
+        <span class="metric-value" id="stat-pages">0</span>
+        <span class="metric-sub" id="stat-elements">0 inputs & buttons</span>
+      </div>
+      <div class="metric-card">
+        <span class="metric-label">Total Tests</span>
+        <span class="metric-value" id="stat-total-tests">0</span>
+        <span class="metric-sub"><span id="stat-ai-tests">0</span> AI Generated • <span id="stat-base-tests">0</span> Baseline</span>
+      </div>
+      <div class="metric-card">
+        <span class="metric-label">Passed Tests</span>
+        <span class="metric-value" style="color: var(--accent-green);" id="stat-passed">0</span>
+        <span class="metric-sub">Deterministic Assertions</span>
+      </div>
+      <div class="metric-card">
+        <span class="metric-label">AI Analyzed Defects</span>
+        <span class="metric-value" style="color: var(--accent-red);" id="stat-defects">0</span>
+        <span class="metric-sub">Actionable Bug Reports</span>
+      </div>
+    </div>
+
+    <!-- View Tabs -->
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('findings')">AI Bug Findings (<span id="tab-findings-count">0</span>)</button>
+      <button class="tab-btn" onclick="switchTab('tests')">All Test Cases (<span id="tab-tests-count">0</span>)</button>
+      <button class="tab-btn" onclick="switchTab('discovery')">Application Map</button>
+    </div>
+
+    <!-- Tab 1: AI Findings -->
+    <section id="tab-findings">
+      <div id="findings-container">
+        <p style="color: var(--text-muted); font-size: 14px;">No failure findings detected yet.</p>
+      </div>
+    </section>
+
+    <!-- Tab 2: Test Cases -->
+    <section id="tab-tests" style="display: none;">
+      <div style="background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; overflow: hidden;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Source</th>
+              <th>Type</th>
+              <th>Title</th>
+              <th>Status</th>
+              <th>Duration</th>
+            </tr>
+          </thead>
+          <tbody id="test-cases-table-body">
+            <tr><td colspan="6" style="text-align: center; color: var(--text-muted);">Loading tests...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Tab 3: Discovery Map -->
+    <section id="tab-discovery" style="display: none;">
+      <div style="background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 24px;">
+        <h3 style="font-family: 'Outfit'; font-size: 18px; margin-bottom: 16px;">Discovered Routes & Endpoints</h3>
+        <div id="discovery-routes-list" style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px;"></div>
+        <h3 style="font-family: 'Outfit'; font-size: 18px; margin-bottom: 16px;">Observed Elements</h3>
+        <div id="discovery-elements-summary" style="font-size: 14px; color: var(--text-muted);">Loading discovery...</div>
+      </div>
+    </section>
+  </main>
+
+  <!-- New Test Run Modal -->
+  <div id="new-run-modal" class="modal-backdrop">
+    <div class="modal">
+      <h3>Start New QA Test Run</h3>
+      <div class="form-group">
+        <label>Repository URL (or local path)</label>
+        <input type="text" id="input-repo-url" class="form-input" value="https://github.com/testq-demo/store" placeholder="e.g. https://github.com/user/repo">
+      </div>
+      <div class="form-group">
+        <label>Branch</label>
+        <input type="text" id="input-branch" class="form-input" value="main">
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeNewRunModal()">Cancel</button>
+        <button class="btn btn-primary" id="btn-submit-run" onclick="submitNewRun()">Start Testing</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentRunId = null;
+    let pollInterval = null;
+
+    async function init() {
+      // Find latest run or use query param
+      const urlParams = new URLSearchParams(window.location.search);
+      const runIdParam = urlParams.get('run_id');
+
+      if (runIdParam) {
+        currentRunId = runIdParam;
+      } else {
+        try {
+          const res = await fetch('/api/test-runs?limit=1');
+          if (res.ok) {
+            const data = await res.json();
+            if (data.runs && data.runs.length > 0) {
+              currentRunId = data.runs[0].id;
+            }
+          }
+        } catch (e) {
+          console.error("Could not fetch latest run:", e);
+        }
+      }
+
+      if (currentRunId) {
+        loadRunData(currentRunId);
+        startPolling();
+      } else {
+        document.getElementById('run-repo-title').textContent = "No Test Runs Found";
+      }
+    }
+
+    async function loadRunData(runId) {
+      try {
+        const [runRes, discRes, casesRes, resultsRes, failRes] = await Promise.all([
+          fetch(`/api/test-runs/${runId}`),
+          fetch(`/api/test-runs/${runId}/discovery`).catch(() => null),
+          fetch(`/api/test-runs/${runId}/test-cases`),
+          fetch(`/api/test-runs/${runId}/test-results`),
+          fetch(`/api/test-runs/${runId}/failures`).catch(() => null)
+        ]);
+
+        if (!runRes.ok) return;
+        const run = await runRes.json();
+        renderRunHeader(run);
+
+        // Discovery
+        if (discRes && discRes.ok) {
+          const disc = await discRes.json();
+          renderDiscovery(disc);
+        }
+
+        // Test Cases & Results
+        const cases = casesRes.ok ? await casesRes.json() : { test_cases: [] };
+        const results = resultsRes.ok ? await resultsRes.json() : { test_results: [] };
+        renderTestCases(cases.test_cases || [], results.test_results || []);
+
+        // Failures
+        const failures = (failRes && failRes.ok) ? await failRes.json() : { failures: [] };
+        renderFailures(failures.failures || []);
+
+        if (run.status === 'COMPLETED' || run.status === 'FAILED' || run.status === 'CANCELLED') {
+          stopPolling();
+        }
+      } catch (err) {
+        console.error("Error loading run data:", err);
+      }
+    }
+
+    function renderRunHeader(run) {
+      document.getElementById('run-repo-title').textContent = run.project?.repository_url || 'Target Application';
+      document.getElementById('run-branch').textContent = `Branch: ${run.branch || 'default'}`;
+      
+      const badge = document.getElementById('run-status-badge');
+      badge.textContent = run.status;
+      badge.className = 'badge ' + (
+        run.status === 'COMPLETED' ? 'badge-status-completed' :
+        run.status === 'FAILED' ? 'badge-status-failed' : 'badge-status-running'
+      );
+
+      if (run.detected_config) {
+        document.getElementById('run-framework').textContent = `Framework: ${run.detected_config.framework || run.detected_config.language || 'Node.js'}`;
+      }
+    }
+
+    function renderDiscovery(disc) {
+      const appMap = disc.application_map || {};
+      const pages = appMap.pages || [];
+      document.getElementById('stat-pages').textContent = pages.length;
+
+      let totalElements = 0;
+      const routesList = document.getElementById('discovery-routes-list');
+      routesList.innerHTML = '';
+
+      pages.forEach(p => {
+        totalElements += (p.forms?.length || 0) + (p.buttons?.length || 0) + (p.inputs?.length || 0);
+        const pill = document.createElement('span');
+        pill.className = 'badge badge-secondary';
+        pill.style.background = 'rgba(255,255,255,0.06)';
+        pill.style.border = '1px solid rgba(255,255,255,0.1)';
+        pill.textContent = p.url.replace(/^http:\/\/[^/]+/, '') || '/';
+        routesList.appendChild(pill);
+      });
+
+      document.getElementById('stat-elements').textContent = `${totalElements} interactive elements`;
+    }
+
+    function renderTestCases(testCases, results) {
+      document.getElementById('stat-total-tests').textContent = testCases.length;
+      document.getElementById('tab-tests-count').textContent = testCases.length;
+
+      let aiCount = 0;
+      let baseCount = 0;
+      let passedCount = 0;
+
+      const resultMap = {};
+      results.forEach(r => { resultMap[r.test_case_id] = r; if (r.status === 'PASS') passedCount++; });
+
+      const tbody = document.getElementById('test-cases-table-body');
+      tbody.innerHTML = '';
+
+      testCases.forEach(tc => {
+        const isAi = tc.source === 'ai';
+        if (isAi) aiCount++; else baseCount++;
+
+        const res = resultMap[tc.id];
+        const status = res ? res.status : 'PENDING';
+        const duration = res ? `${res.duration_ms.toFixed(0)} ms` : '--';
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><code>${tc.definition?.id || tc.id.substring(0,8)}</code></td>
+          <td><span class="badge ${isAi ? 'badge-ai' : 'badge-baseline'}">${isAi ? 'AI Generated' : 'Baseline'}</span></td>
+          <td><span style="text-transform: uppercase; font-size: 11px;">${tc.type}</span></td>
+          <td style="font-weight: 500;">${tc.title}</td>
+          <td><span class="badge ${status === 'PASS' ? 'badge-status-completed' : (status === 'FAIL' ? 'badge-status-failed' : 'badge-baseline')}">${status}</span></td>
+          <td style="color: var(--text-muted);">${duration}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      document.getElementById('stat-ai-tests').textContent = aiCount;
+      document.getElementById('stat-base-tests').textContent = baseCount;
+      document.getElementById('stat-passed').textContent = passedCount;
+    }
+
+    function renderFailures(failures) {
+      document.getElementById('stat-defects').textContent = failures.length;
+      document.getElementById('tab-findings-count').textContent = failures.length;
+
+      const container = document.getElementById('findings-container');
+      if (failures.length === 0) {
+        container.innerHTML = `<p style="color: var(--text-muted); font-size: 14px; padding: 20px 0;">No defects analyzed. All executed tests passed or no failures recorded.</p>`;
+        return;
+      }
+
+      container.innerHTML = '';
+      failures.forEach(f => {
+        const sevClass = f.severity === 'critical' ? 'badge-sev-critical' :
+                         f.severity === 'high' ? 'badge-sev-high' :
+                         f.severity === 'medium' ? 'badge-sev-medium' : 'badge-sev-low';
+
+        const card = document.createElement('div');
+        card.className = 'finding-card';
+        card.innerHTML = `
+          <div class="finding-header">
+            <div class="finding-title-group">
+              <h3>${f.title}</h3>
+              <p style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">Triggered by: <strong>${f.test_title}</strong> (${f.test_source === 'ai' ? 'AI Test' : 'Baseline'})</p>
+            </div>
+            <div class="finding-badges">
+              <span class="badge ${sevClass}">${f.severity.toUpperCase()}</span>
+              <span class="badge" style="background: rgba(255,255,255,0.06);">${f.category.toUpperCase()}</span>
+              <span class="badge badge-ai">${(f.confidence * 100).toFixed(0)}% Confidence</span>
+            </div>
+          </div>
+          <div class="finding-body">
+            <p><strong>Observed Impact:</strong> ${f.summary}</p>
+            <div class="callout-box">
+              <div class="callout-title">Likely Root Cause</div>
+              <p style="font-size: 13px; color: #f8fafc;">${f.likely_root_cause}</p>
+            </div>
+            <div>
+              <strong>Reproduction Steps:</strong>
+              <ol class="steps-list">
+                ${(f.reproduction_steps || []).map(s => `<li>${s}</li>`).join('')}
+              </ol>
+            </div>
+            ${f.error ? `<div style="font-size: 12px; color: #f87171; background: rgba(0,0,0,0.3); padding: 8px 12px; border-radius: 6px;"><code>${f.error}</code></div>` : ''}
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      event.target.classList.add('active');
+      document.getElementById('tab-findings').style.display = tabId === 'findings' ? 'block' : 'none';
+      document.getElementById('tab-tests').style.display = tabId === 'tests' ? 'block' : 'none';
+      document.getElementById('tab-discovery').style.display = tabId === 'discovery' ? 'block' : 'none';
+    }
+
+    function startPolling() {
+      stopPolling();
+      pollInterval = setInterval(() => { if (currentRunId) loadRunData(currentRunId); }, 3000);
+    }
+
+    function stopPolling() {
+      if (pollInterval) clearInterval(pollInterval);
+    }
+
+    function openNewRunModal() { document.getElementById('new-run-modal').style.display = 'flex'; }
+    function closeNewRunModal() { document.getElementById('new-run-modal').style.display = 'none'; }
+
+    async function submitNewRun() {
+      const repoUrl = document.getElementById('input-repo-url').value;
+      const branch = document.getElementById('input-branch').value || 'main';
+      const btn = document.getElementById('btn-submit-run');
+      btn.disabled = true;
+      btn.textContent = 'Submitting...';
+
+      try {
+        const res = await fetch('/api/test-runs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            repository_url: repoUrl,
+            branch: branch,
+            discover: true,
+            testing_enabled: true
+          })
+        });
+        if (res.ok) {
+          const run = await res.json();
+          currentRunId = run.id;
+          closeNewRunModal();
+          loadRunData(currentRunId);
+          startPolling();
+        } else {
+          alert('Failed to launch run: ' + (await res.text()));
+        }
+      } catch (err) {
+        alert('Error: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Start Testing';
+      }
+    }
+
+    window.onload = init;
+  </script>
+</body>
+</html>

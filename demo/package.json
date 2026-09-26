@@ -1,0 +1,12 @@
+{
+  "name": "testq-demo-store",
+  "version": "1.0.0",
+  "description": "TestQ Hackathon Demo E-Commerce Application with Intentional Defects",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}

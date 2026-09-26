@@ -1,25 +1,21 @@
-# TestQ Python Sandbox
-# Supports: FastAPI, Python web applications
-# This image is used for building and running untrusted Python projects.
-
+﻿# Build from repository root: docker build -f sandbox/Dockerfile.python ... .
 FROM python:3.13-slim
-
-# Install useful tools
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    git \
+LABEL testq.hardening="1" testq.browser="1.63.0"
+RUN apt-get update && apt-get install -y --no-install-recommends curl git \
     && rm -rf /var/lib/apt/lists/*
-
-# Create workspace directory
-RUN mkdir -p /workspace
+COPY sandbox/browser-requirements.txt /opt/testq/browser-requirements.txt
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/testq/browsers
+RUN python -m venv /opt/testq/venv \
+    && /opt/testq/venv/bin/pip install --no-cache-dir -r /opt/testq/browser-requirements.txt \
+    && /opt/testq/venv/bin/python -m playwright install --with-deps chromium \
+    && /opt/testq/venv/bin/python -c "import site,pathlib; pathlib.Path(site.getsitepackages()[0], 'testq.pth').write_text('/opt/testq/lib')"
+RUN groupadd -g 10001 testq && useradd -m -u 10001 -g testq testq \
+    && groupadd -g 10002 browser && useradd -m -u 10002 -g browser browser \
+    && mkdir -p /workspace /discovery && chown testq:testq /workspace \
+    && chown browser:browser /discovery && chmod 700 /discovery
+COPY backend/testq_browser /opt/testq/lib/testq_browser
+RUN chmod -R a+rX,go-w /opt/testq
 WORKDIR /workspace
-
-# Upgrade pip
-RUN pip install --no-cache-dir --upgrade pip
-
-# Set environment defaults
-ENV PYTHONUNBUFFERED=1
-ENV PORT=8000
-
-# Keep container alive — commands are executed via docker exec
-CMD ["sleep", "infinity"]
+ENV HOME=/home/testq PATH=/home/testq/.local/bin:$PATH PYTHONUNBUFFERED=1
+USER 10001:10001
+CMD ["sleep", "600"]

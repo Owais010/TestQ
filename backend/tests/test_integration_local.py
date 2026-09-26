@@ -26,6 +26,7 @@ from app.services.sandbox_manager import SandboxManager
 from app.services.build_manager import BuildManager
 from app.services.health_checker import HealthChecker
 from app.schemas.common import SandboxConfig
+from app.worker.control import RunControl
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(name)s | %(message)s")
 logger = logging.getLogger("test.integration")
@@ -75,6 +76,8 @@ async def run_test():
     """Run the full local integration test."""
     fixture_path = Path(tempfile.mkdtemp(prefix="testq_fixture_"))
     container_id = None
+    sandbox = None
+    control = RunControl(300)
 
     try:
         # 1. Create fixture app
@@ -95,7 +98,7 @@ async def run_test():
 
         # 3. Create sandbox
         logger.info("=== Step 3: Creating sandbox ===")
-        sandbox = SandboxManager()
+        sandbox = SandboxManager(control)
         sandbox_config = SandboxConfig(
             image="testq-sandbox-node:latest",
             cpu_limit=2.0,
@@ -131,14 +134,16 @@ async def run_test():
 
         # 6. Start application
         logger.info("=== Step 6: Starting application ===")
-        build_mgr.start_application(container_id, config)
+        sandbox.restrict_network(container_id)
+        exec_id = build_mgr.start_application(container_id, config)
         await asyncio.sleep(3)  # Give app time to start
 
         # 7. Health check
         logger.info("=== Step 7: Health checking ===")
         checker = HealthChecker(max_retries=15, retry_interval=2.0)
         url = f"http://localhost:{host_port}"
-        health = await checker.check(url)
+        health = await checker.check_sandbox(sandbox, container_id, config.expected_port,
+                                              control, asyncio.to_thread, exec_id=exec_id)
         logger.info(f"Healthy: {health.is_healthy}")
         logger.info(f"Status code: {health.status_code}")
         logger.info(f"Response time: {health.response_time_ms}ms")
@@ -165,12 +170,9 @@ async def run_test():
 
     finally:
         # Cleanup
-        if container_id:
-            try:
-                sandbox.destroy(container_id)
-                logger.info("Sandbox cleaned up")
-            except Exception:
-                pass
+        if sandbox:
+            sandbox.cleanup()
+            logger.info("Sandbox cleaned up")
         import shutil
         shutil.rmtree(fixture_path, ignore_errors=True)
         logger.info("Fixture cleaned up")
