@@ -1,9 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import type { RunList, Project, Run } from "./types";
-export const base = (import.meta.env.VITE_API_BASE_URL || "").replace(
-  /\/$/,
-  "",
-);
+export const base = (
+  import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000"
+).replace(/\/$/, "");
 export class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {
