@@ -22,7 +22,13 @@ class BuildManager:
         result = self.sandbox.execute(
             container_id, command, timeout=timeout or settings.docker_timeout,
             working_dir=self.workdir(config), source=stage,
-            environment={"NODE_ENV": "development", "NPM_CONFIG_PRODUCTION": "false"},
+            environment={
+                "NODE_ENV": "development",
+                "NPM_CONFIG_PRODUCTION": "false",
+                "NPM_CONFIG_LEGACY_PEER_DEPS": "true",
+                "NPM_CONFIG_AUDIT": "false",
+                "NPM_CONFIG_FUND": "false",
+            },
         )
         if result.timed_out or result.exit_code != 0:
             raise BuildError(stage, result)
