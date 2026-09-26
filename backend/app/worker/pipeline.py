@@ -354,12 +354,12 @@ class Pipeline:
         except (RunCancelled, asyncio.CancelledError) as error:
             self.control.cancel()
             outcome = S.CANCELLED
-            run.failure_reason = str(error) or "Worker cancelled"
-            run.failure_stage = run.status
+            failure_reason = str(error) or "Worker cancelled"
+            failure_stage = getattr(run, "status", None) or "UNKNOWN"
         except Exception as error:
             outcome = S.CANCELLED if self.control.cancel_event.is_set() else S.FAILED
-            run.failure_reason = str(error) or repr(error)
-            run.failure_stage = run.status
+            failure_reason = str(error) or repr(error)
+            failure_stage = getattr(run, "status", None) or "UNKNOWN"
             logger.exception("Run %s failed", run_id)
             try:
                 await self.db.rollback()
@@ -397,19 +397,15 @@ class Pipeline:
                     outcome = S.CANCELLED
                 if cleanup_errors:
                     outcome = S.CANCELLED if outcome == S.CANCELLED else S.FAILED
-                    run.failure_reason = (run.failure_reason or "") + "; " + "; ".join(cleanup_errors)
-                    run.failure_stage = run.failure_stage or "CLEANUP"
+                    failure_reason = (failure_reason or "") + ("; " + "; ".join(cleanup_errors) if failure_reason else "; ".join(cleanup_errors))
+                    failure_stage = failure_stage or "CLEANUP"
                 if outcome == S.CANCELLED:
-                    run.failure_reason = run.failure_reason or "Cancelled by user"
-                    run.cancellation_requested = True
-                run.finished_at = datetime.now(timezone.utc)
+                    failure_reason = failure_reason or "Cancelled by user"
                 try:
-                    await self._update_status(run, outcome)
+                    await self._update_status(run, outcome, failure_reason=failure_reason, failure_stage=failure_stage)
                 except RunCancelled:
-                    run.cancellation_requested = True
-                    run.failure_reason = "Cancelled by user"
-                    run.finished_at = datetime.now(timezone.utc)
-                    await self._update_status(run, S.CANCELLED)
+                    failure_reason = "Cancelled by user"
+                    await self._update_status(run, S.CANCELLED, failure_reason=failure_reason, failure_stage=failure_stage)
                 success = outcome in (S.READY, S.DISCOVERY_COMPLETE, S.COMPLETED)
                 message = ("Deterministic testing complete; results and evidence retained; sandbox cleaned up"
                            if outcome == S.COMPLETED else (
@@ -417,12 +413,12 @@ class Pipeline:
                                if outcome == S.DISCOVERY_COMPLETE else "Phase 1 READY; sandbox and workspace removed"
                            ))
                 await self._log(run, "system", "INFO" if success else "ERROR",
-                                getattr(run, "failure_reason", None) or message)
+                                failure_reason or message)
             finally:
                 self.control.done.set()
                 controls.pop(run_id, None)
 
-    async def _update_status(self, run, new_status):
+    async def _update_status(self, run, new_status, failure_reason=None, failure_stage=None):
         row = (await self.db.execute(select(TestRun).where(TestRun.id == run.id))).scalar_one_or_none()
         if not row:
             return
@@ -471,10 +467,20 @@ class Pipeline:
         }
         if new_status in S.TERMINAL:
             update_vals["finished_at"] = datetime.now(timezone.utc)
-            if getattr(run, "failure_reason", None):
-                update_vals["failure_reason"] = run.failure_reason
-            if getattr(run, "failure_stage", None):
-                update_vals["failure_stage"] = run.failure_stage
+            if failure_reason is not None:
+                update_vals["failure_reason"] = failure_reason
+            else:
+                try:
+                    update_vals["failure_reason"] = run.failure_reason
+                except Exception:
+                    pass
+            if failure_stage is not None:
+                update_vals["failure_stage"] = failure_stage
+            else:
+                try:
+                    update_vals["failure_stage"] = run.failure_stage
+                except Exception:
+                    pass
             if getattr(run, "ai_status", None):
                 update_vals["ai_status"] = run.ai_status
             if getattr(run, "ai_warning", None):

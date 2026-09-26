@@ -154,8 +154,8 @@ class SandboxManager:
         stdout = f"/tmp/testq-{token}.stdout"
         stderr = f"/tmp/testq-{token}.stderr"
         self.executions.setdefault(container_id, []).append((source, stdout, stderr))
-        # RLIMIT_FSIZE bounds each output file to 10 MiB (dash uses 512-byte blocks).
-        wrapped = f"ulimit -f 20480; exec sh -c {shlex.quote(command)} >{stdout} 2>{stderr}"
+        # RLIMIT_FSIZE bounds each output file to 512 MiB (dash uses 512-byte blocks).
+        wrapped = f"ulimit -f 1048576; exec sh -c {shlex.quote(command)} >{stdout} 2>{stderr}"
         result = self.client.api.exec_create(
             container_id, cmd=["sh", "-c", wrapped], workdir=working_dir,
             user=user, environment=environment or {},
