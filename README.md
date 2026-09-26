@@ -1,18 +1,15 @@
-# TestQ — Independent AI QA Agent
+# TestQ — Autonomous AI-Powered QA Engineering Agent
 
-Phase 1 builds and runs supported GitHub applications inside disposable Docker
-sandboxes. Phase 2 adds deterministic Playwright discovery of the real application
-to produce an application map and baseline evidence. Phase 3 adds a deterministic
-test engine that converts the application map into structured UI and API test cases,
-executes them inside the sandbox via Playwright and HTTPX, evaluates deterministic
-assertions, records PASS/FAIL/ERROR/TIMEOUT/CANCELLED results, and links captured
-evidence in SQLite. Phase 4 adds AI test generation using local Ollama to synthesize
-intelligent test strategies and structured test definitions, validated through strict
-Pydantic schemas and executed deterministically via the Phase 3 executor. Phase 4.5
-adds Hackathon Hardening with lightweight AI failure analysis, a controlled demo store
-with intentional defects, and an interactive real-time QA dashboard at `/dashboard`.
-No paid APIs are required, and the core architectural rule remains strictly enforced:
-AI reasons. Deterministic code executes.
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688.svg)](https://fastapi.tiangolo.com/)
+[![React](https://img.shields.io/badge/React-18+-61DAFB.svg)](https://react.dev/)
+[![Docker](https://img.shields.io/badge/Docker-Sandboxed-2496ED.svg)](https://www.docker.com/)
+
+TestQ is an autonomous, truthful, end-to-end AI QA engineering agent that clones, builds, and executes web applications inside disposable, security-hardened Docker sandboxes. It combines deterministic headless Playwright crawler discovery with local LLM test planning and test generation (Ollama `qwen3:8b`), executes UI and API test cases deterministically, captures visual evidence, and generates root-cause failure analyses for detected defects.
+
+### Core Architectural Principle
+> **AI reasons. Deterministic code executes.**  
+> Untrusted LLM output never executes raw code directly. Test synthesis is strictly validated through Pydantic schemas, and all test executions are deterministically carried out via Playwright and HTTPX inside network-isolated containers.
 
 
 ## Setup
@@ -367,19 +364,20 @@ Full Phase 5 (Runtime monitoring, static analysis) and full Phase 6 (advanced bu
 
 
 
-## New standalone frontend
+## Modern Web UI & Interactive Dashboard
 
-The rebuilt UI lives in `frontend/` and uses React, TypeScript, Motion, Radix,
-Three.js and the existing backend APIs. With the backend running, start it with:
+The interactive UI lives in `frontend/` and is built with React 18, TypeScript, TailwindCSS, Motion, Radix UI, Three.js, and Vite.
+
+With the backend running on port 8000, start the frontend:
 
 ```powershell
 cd frontend
-npm ci
+npm install
 npm run dev
 ```
 
-Open **http://127.0.0.1:3000** for the animated welcome page, then choose **Open workspace**
-to enter `/dashboard`. This is separate from the older backend `/dashboard` page. The new
-frontend includes run creation/cancellation, live progress, history, project views,
-application maps, results, evidence, logs, analysis and motion preferences.
-See [frontend/README.md](frontend/README.md) for architecture, tests and deployment.
+Open **http://127.0.0.1:5173** to access the dashboard.
+- **Welcome Page**: Interactive 3D sculpture and quick-start actions.
+- **Runs Overview**: Live status cards, historical runs, and filtering.
+- **Run Details**: Real-time pipeline progress, terminal logs, application map discovery hierarchy, test cases, and captured screenshot/log evidence.
+- **Failure Analysis**: Confirmed bug reports with automated root cause identification, reproduction steps, and severity badges.
