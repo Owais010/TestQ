@@ -47,6 +47,16 @@ def get_demo_source_dir() -> Path:
     return (APP_ROOT / "demo").resolve()
 
 
+def get_demo_base_url() -> str:
+    """Return the base URL for the demo store application.
+    Uses DEMO_URL from Vercel service binding if available,
+    falling back to local default.
+    """
+    if getattr(settings, "demo_url", None):
+        return settings.demo_url.rstrip("/")
+    return "http://127.0.0.1:3000"
+
+
 def create_demo_deterministic_tests(run_id: str) -> list[TestCase]:
     """Create real deterministic tests capable of verifying intentional demo defects:
     - BUG-001: Checkout accepts invalid quantity (0)

@@ -99,7 +99,7 @@ async def get_test_run(run_id: str, db: AsyncSession = Depends(get_db)):
 async def cancel_test_run(run_id: str, response: Response, db: AsyncSession = Depends(get_db)):
     run = await get_test_run(run_id, db)
     if run.status in S.TERMINAL or run.finished_at:
-        raise HTTPException(status_code=400, detail=f"Cannot cancel finished run: {run.status}")
+        return run
     # Conditional write prevents racing a completed worker. Persist BEFORE signalling.
     result = await db.execute(update(TestRun).where(
         TestRun.id == run_id, TestRun.finished_at.is_(None),

@@ -84,23 +84,35 @@ class GitHubService:
         target.parent.mkdir(parents=True, exist_ok=True)
         demo_dir = (APP_ROOT / "demo").resolve()
         from app.services.demo_showcase import is_demo_repo
-        if is_demo_repo(url) and demo_dir.exists():
-            args = ["clone"]
-            if branch:
-                try:
-                    branches = self._git(["-C", str(demo_dir), "branch", "--list", branch]).strip()
-                    if branches:
-                        args += ["--branch", branch]
-                except Exception:
-                    pass
-            args += ["--", str(demo_dir), str(target)]
-        else:
-            args = ["clone", "--depth=1"]
-            if branch:
-                args += ["--branch", branch]
-            args += ["--", url + ".git", str(target)]
         try:
-            self._git(args)
+            if is_demo_repo(url) and demo_dir.exists():
+                if (demo_dir / ".git").exists():
+                    args = ["clone"]
+                    if branch:
+                        try:
+                            branches = self._git(["-C", str(demo_dir), "branch", "--list", branch]).strip()
+                            if branches:
+                                args += ["--branch", branch]
+                        except Exception:
+                            pass
+                    args += ["--", str(demo_dir), str(target)]
+                    self._git(args)
+                else:
+                    import shutil
+                    shutil.copytree(demo_dir, target)
+                    target_branch = branch or "main"
+                    self._git(["-C", str(target), "init", "-b", target_branch])
+                    self._git(["-C", str(target), "config", "user.email", "demo@testq.local"])
+                    self._git(["-C", str(target), "config", "user.name", "TestQ Demo"])
+                    self._git(["-C", str(target), "add", "."])
+                    self._git(["-C", str(target), "commit", "-m", "Initial demo commit", "--no-verify"])
+            else:
+                args = ["clone", "--depth=1"]
+                if branch:
+                    args += ["--branch", branch]
+                args += ["--", url + ".git", str(target)]
+                self._git(args)
+
             return {
                 "repo_path": str(target),
                 "branch": self._git(["-C", str(target), "rev-parse", "--abbrev-ref", "HEAD"]),

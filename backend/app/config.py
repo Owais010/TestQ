@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     host: str = "127.0.0.1"
     backend_port: int = Field(8000, ge=1, le=65535)
     frontend_port: int = Field(3000, ge=1, le=65535)
+    demo_url: str = ""
     evidence_dir: str = "./evidence"
     workspaces_dir: str = "./workspaces"
     log_level: str = "INFO"

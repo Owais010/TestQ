@@ -50,7 +50,7 @@ export default function RunDetail() {
   const client = useQueryClient();
   const cancel = useMutation({
     mutationFn: () => api(`/api/test-runs/${id}/cancel`, { method: "POST" }),
-    onSuccess: () => {
+    onSettled: () => {
       client.invalidateQueries({ queryKey: ["run", id] });
       client.invalidateQueries({ queryKey: ["runs"] });
     },

@@ -374,7 +374,7 @@ export default function App() {
                           </div>
                           <a
                             className="text-link"
-                            href={`${base || "http://127.0.0.1:8000"}/docs`}
+                            href={`${base !== "" ? (base || "http://127.0.0.1:8000") : ""}/docs`}
                             target="_blank"
                             rel="noreferrer"
                           >

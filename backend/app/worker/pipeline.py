@@ -73,12 +73,15 @@ class Pipeline:
             raise RunCancelled("Worker task cancelled")
 
     async def run(self, run):
-        run_id = run.id
+        self.run_id = str(run.id)
+        self.discovery_enabled = bool(run.discovery_enabled)
+        run_id = self.run_id
         controls[run_id] = self.control
         repo_path = None
         container_id = None
         outcome = S.READY
         cleanup_errors = []
+        current_stage = S.CLONING
         try:
             if run.testing_enabled and not run.discovery_enabled:
                 raise ValueError("Testing requires discovery to be enabled")
@@ -99,6 +102,7 @@ class Pipeline:
                 run.project.default_branch = clone["branch"]
             run.commit_sha, run.branch = clone["commit_sha"], clone["branch"]
             await self._log(run, "clone", "INFO", f"Cloned {run.branch} at {run.commit_sha}")
+            current_stage = S.ANALYZING
             await self._update_status(run, S.ANALYZING)
             config = await self._blocking(detect_project, repo_path)
             run.detected_config = config.model_dump()
@@ -112,6 +116,7 @@ class Pipeline:
                 await self._log(run, "static_analyzer", "INFO", f"Static analysis identified {static_res.get('total', 0)} static findings")
             except Exception as se:
                 await self._log(run, "static_analyzer", "WARN", f"Static analysis skipped: {se}")
+            current_stage = S.BUILDING
             await self._update_status(run, S.BUILDING)
             self.sandbox = await self._blocking(self.sandbox_factory, self.control, run.id)
             image = PYTHON_SANDBOX_IMAGE if config.language == "python" else NODE_SANDBOX_IMAGE
@@ -135,6 +140,7 @@ class Pipeline:
             self.control.check()
             # No public interface or outbound network is needed after setup.
             await self._blocking(self.sandbox.restrict_network, container_id)
+            current_stage = S.STARTING
             await self._update_status(run, S.STARTING)
             exec_id = await self._blocking(builder.start_application, container_id, config)
             health = await self.health_checker.check_sandbox(
@@ -148,14 +154,21 @@ class Pipeline:
             await self._log(run, "startup", "INFO", health_msg)
             if run.discovery_enabled:
                 await self._update_status(run, S.READY)
+                current_stage = S.DISCOVERING
                 await self._update_status(run, S.DISCOVERING)
                 self.discovery = DiscoveryService(self.db, self.sandbox, container_id,
                                                   self.control, self._blocking)
-                base_url = f"http://127.0.0.1:{config.expected_port}"
+                is_demo = is_demo_repo(run.project.repository_url)
+                if is_demo and getattr(settings, "demo_url", None):
+                    base_url = settings.demo_url.rstrip("/")
+                    await self._log(run, "discovery", "INFO", f"Targeting bound demo service at {base_url}")
+                else:
+                    base_url = f"http://127.0.0.1:{config.expected_port}"
                 result = await self.discovery.discover(base_url, run.id)
                 await self._log(run, "discovery", "INFO", f"Discovery recorded {len(result.pages)} pages")
 
                 if run.testing_enabled:
+                    current_stage = S.TESTING
                     await self._update_status(run, S.TESTING)
                     is_demo = is_demo_repo(run.project.repository_url)
                     await self._log(run, "testing", "INFO", "Generating deterministic baseline test suite")
@@ -355,12 +368,12 @@ class Pipeline:
             self.control.cancel()
             outcome = S.CANCELLED
             failure_reason = str(error) or "Worker cancelled"
-            failure_stage = getattr(run, "status", None) or "UNKNOWN"
+            failure_stage = current_stage
         except Exception as error:
             outcome = S.CANCELLED if self.control.cancel_event.is_set() else S.FAILED
             failure_reason = str(error) or repr(error)
-            failure_stage = getattr(run, "status", None) or "UNKNOWN"
-            logger.exception("Run %s failed", run_id)
+            failure_stage = current_stage
+            logger.exception("Run %s failed at %s", run_id, current_stage)
             try:
                 await self.db.rollback()
             except Exception:
@@ -383,8 +396,6 @@ class Pipeline:
                 if self.sandbox:
                     try:
                         await self._blocking(self.sandbox.cleanup)
-                        run.container_id = None
-                        run.sandbox_port = None
                     except Exception as error:
                         cleanup_errors.append(f"Sandbox cleanup: {error}")
                 if repo_path:
@@ -419,7 +430,8 @@ class Pipeline:
                 controls.pop(run_id, None)
 
     async def _update_status(self, run, new_status, failure_reason=None, failure_stage=None):
-        row = (await self.db.execute(select(TestRun).where(TestRun.id == run.id))).scalar_one_or_none()
+        run_id = getattr(self, "run_id", None) or (run if isinstance(run, str) else getattr(run, "id", str(run)))
+        row = (await self.db.execute(select(TestRun).where(TestRun.id == run_id))).scalar_one_or_none()
         if not row:
             return
         old_status = row.status
@@ -457,7 +469,7 @@ class Pipeline:
                 progress[key] = "completed"
             progress[KEYS[index]] = "completed" if new_status in (S.READY, S.COMPLETED) else "in_progress"
         await self.db.flush()
-        condition = [TestRun.id == run.id, TestRun.status == old_status]
+        condition = [TestRun.id == run_id, TestRun.status == old_status]
         if new_status != S.CANCELLED:
             condition.append(TestRun.cancellation_requested.is_(False))
 
@@ -467,26 +479,28 @@ class Pipeline:
         }
         if new_status in S.TERMINAL:
             update_vals["finished_at"] = datetime.now(timezone.utc)
+            update_vals["container_id"] = None
+            update_vals["sandbox_port"] = None
             if failure_reason is not None:
                 update_vals["failure_reason"] = failure_reason
             else:
                 try:
-                    update_vals["failure_reason"] = run.failure_reason
+                    update_vals["failure_reason"] = getattr(row, "failure_reason", None)
                 except Exception:
                     pass
             if failure_stage is not None:
                 update_vals["failure_stage"] = failure_stage
             else:
                 try:
-                    update_vals["failure_stage"] = run.failure_stage
+                    update_vals["failure_stage"] = getattr(row, "failure_stage", None)
                 except Exception:
                     pass
-            if getattr(run, "ai_status", None):
-                update_vals["ai_status"] = run.ai_status
-            if getattr(run, "ai_warning", None):
-                update_vals["ai_warning"] = run.ai_warning
-            if getattr(run, "ai_test_count", None) is not None:
-                update_vals["ai_test_count"] = run.ai_test_count
+            if getattr(row, "ai_status", None):
+                update_vals["ai_status"] = row.ai_status
+            if getattr(row, "ai_warning", None):
+                update_vals["ai_warning"] = row.ai_warning
+            if getattr(row, "ai_test_count", None) is not None:
+                update_vals["ai_test_count"] = row.ai_test_count
 
         result = await self.db.execute(update(TestRun).where(*condition).values(
             **update_vals
@@ -499,10 +513,16 @@ class Pipeline:
                 raise RunCancelled("Cancellation requested")
             raise InvalidTransition("Run state changed concurrently")
         await self.db.commit()
-        await self.db.refresh(run, ["status", "progress", "cancellation_requested"])
+        try:
+            if hasattr(run, "id"):
+                await self.db.refresh(run, ["status", "progress", "cancellation_requested"])
+        except Exception:
+            pass
 
     async def _log(self, run, source, level, message):
-        if run.discovery_enabled:
+        run_id = getattr(self, "run_id", None) or (run if isinstance(run, str) else getattr(run, "id", str(run)))
+        discovery_enabled = getattr(self, "discovery_enabled", True)
+        if discovery_enabled:
             message = redact(message, 65536)
-        self.db.add(Log(run_id=run.id, source=source, level=level, message=message))
+        self.db.add(Log(run_id=run_id, source=source, level=level, message=message))
         await self.db.commit()

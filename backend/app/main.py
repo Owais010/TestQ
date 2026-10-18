@@ -94,7 +94,7 @@ app.add_middleware(
         "http://127.0.0.1:3002",
         f"http://localhost:{settings.frontend_port}",
     ],
-    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
+    allow_origin_regex=r"^(https?://(localhost|127\.0\.0\.1)(:\d+)?|https://.*\.vercel\.app)$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
