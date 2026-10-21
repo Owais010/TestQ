@@ -5,7 +5,7 @@
 [![React](https://img.shields.io/badge/React-18+-61DAFB.svg)](https://react.dev/)
 [![Docker](https://img.shields.io/badge/Docker-Sandboxed-2496ED.svg)](https://www.docker.com/)
 
-TestQ is an autonomous, truthful, end-to-end AI QA engineering agent that clones, builds, and executes web applications inside disposable, security-hardened Docker sandboxes. It combines deterministic headless Playwright crawler discovery with local LLM test planning and test generation (Ollama `qwen3:8b`), executes UI and API test cases deterministically, captures visual evidence, and generates root-cause failure analyses for detected defects.
+TestQ is an autonomous, truthful, end-to-end AI QA engineering agent that clones, builds, and executes web applications inside disposable, security-hardened Docker sandboxes. It combines deterministic headless  Playwright crawler discovery with local LLM test planning and test generation (Ollama `qwen3:8b`), executes UI and API test cases deterministically, captures visual evidence, and generates root-cause failure analyses for detected defects.
 
 ### Core Architectural Principle
 > **AI reasons. Deterministic code executes.**  
